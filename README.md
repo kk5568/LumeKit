@@ -2,6 +2,9 @@
 
 LumeKit 是一个基于 WinUI 3 的 Windows 音频管理工具，支持蓝牙音频连接、快捷键路由切换、托盘浮窗快速操作和通知控制。
 
+## 界面截图
+<img width="1783" height="1591" alt="屏幕截图 2026-05-23 234044" src="https://github.com/user-attachments/assets/db288aad-ad2f-4b0c-a187-9dbf2e2abcaa" />
+
 ## 主要功能
 
 - 蓝牙音频设备管理：扫描、连接、断开输入/输出音频设备。
