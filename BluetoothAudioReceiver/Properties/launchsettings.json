@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "BluetoothAudioReceiver (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "BluetoothAudioReceiver (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

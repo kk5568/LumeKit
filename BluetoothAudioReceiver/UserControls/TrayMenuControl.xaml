@@ -1,0 +1,29 @@
+﻿<UserControl
+    x:Class="BluetoothAudioReceiver.UserControls.TrayMenuControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:BluetoothAudioReceiver.UserControls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:tb="using:H.NotifyIcon"
+    d:DataContext="{d:DesignInstance Type=local:TrayMenuControl}"
+    mc:Ignorable="d">
+    <tb:TaskbarIcon
+        x:Name="TrayIconControl"
+        ContextMenuMode="PopupMenu"
+        IconSource="ms-appx:///Assets/speakericon3_32x32.ico"
+        LeftClickCommand="{x:Bind ShowQuickPanelCommand}"
+        MenuActivation="RightClick"
+        NoLeftClickDelay="True"
+        ToolTipText="{x:Bind ViewModel.TrayIconToolTip, Mode=OneWay}">
+        <tb:TaskbarIcon.ContextFlyout>
+            <MenuFlyout>
+                <MenuFlyoutItem Text="主界面" Command="{x:Bind ShowWindowCommand}" />
+                <MenuFlyoutItem Text="重启" Command="{x:Bind RestartAppCommand}" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem x:Uid="TrayMenu_MenuFlyoutItem_ExitApp" Command="{x:Bind ExitAppCommand}" />
+            </MenuFlyout>
+        </tb:TaskbarIcon.ContextFlyout>
+
+    </tb:TaskbarIcon>
+</UserControl>

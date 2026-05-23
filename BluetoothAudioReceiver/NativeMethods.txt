@@ -1,0 +1,21 @@
+// Program
+CreateEvent
+SetEvent
+CoWaitForMultipleObjects
+CWMO_FLAGS
+INFINITE
+
+// MainWindow
+IsIconic
+
+// NotificationWindow
+SetWindowLong
+SetWindowPos
+GetWindowLong
+
+// Global Hotkeys
+RegisterHotKey
+UnregisterHotKey
+
+// COM
+PropVariantClear

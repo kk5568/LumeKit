@@ -1,0 +1,62 @@
+<Page
+    x:Class="BluetoothAudioReceiver.Views.Pages.AutoBrightnessPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    Background="Transparent">
+
+    <ScrollViewer Padding="24" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="16">
+            <TextBlock Text="自动亮度" FontSize="16" FontWeight="SemiBold" />
+
+            <Grid Style="{StaticResource CardPanelStyle}" Padding="20">
+                <controls:SettingsCard Header="自动亮度调节">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE7F3;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <TextBlock Text="{x:Bind ViewModel.AutoBrightnessEnabledText, Mode=OneWay}" VerticalAlignment="Center" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.AutoBrightnessEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+                    </StackPanel>
+                </controls:SettingsCard>
+            </Grid>
+
+            <Grid Style="{StaticResource CardPanelStyle}" Padding="20">
+                <controls:SettingsExpander Header="用户偏好设置">
+                    <controls:SettingsExpander.HeaderIcon>
+                        <FontIcon Glyph="&#xE77B;" />
+                    </controls:SettingsExpander.HeaderIcon>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <TextBlock Text="{x:Bind ViewModel.UsePreferenceEnabledText, Mode=OneWay}" VerticalAlignment="Center" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.UsePreferenceEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+                    </StackPanel>
+                    <controls:SettingsExpander.Items>
+                        <controls:SettingsCard Header="亮度范围">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Slider Minimum="0" Maximum="100" Value="{x:Bind ViewModel.MinBrightness, Mode=TwoWay}" Width="150" />
+                                <Slider Minimum="0" Maximum="100" Value="{x:Bind ViewModel.MaxBrightness, Mode=TwoWay}" Width="150" />
+                            </StackPanel>
+                        </controls:SettingsCard>
+                        <controls:SettingsCard Header="色温范围 (K)">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Slider Minimum="2000" Maximum="7500" Value="{x:Bind ViewModel.MinColorTemp, Mode=TwoWay}" Width="150" />
+                                <Slider Minimum="2000" Maximum="7500" Value="{x:Bind ViewModel.MaxColorTemp, Mode=TwoWay}" Width="150" />
+                            </StackPanel>
+                        </controls:SettingsCard>
+                    </controls:SettingsExpander.Items>
+                </controls:SettingsExpander>
+            </Grid>
+
+            <Grid Style="{StaticResource CardPanelStyle}" Padding="20">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="校准" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" HorizontalAlignment="Right" Content="校准当前环境" Command="{x:Bind ViewModel.CalibrateCommand}" />
+                </Grid>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="LumeKit"
+    Manufacturer="kk5568"
+    Version="1.6.0"
+    UpgradeCode="8E5F3F2C-1A82-4C75-90D2-6B132B5A2F8C"
+    InstallerVersion="500"
+    Scope="perMachine"
+    Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="已安装更新版本，无法降级安装。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="LumeKit" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramMenuDir" Name="LumeKit" />
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="LumeKit" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcutComponent" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="..\BluetoothAudioReceiver\bin\x64\Release\net9.0-windows10.0.22621.0\win-x64\**" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <Component Id="StartMenuShortcutComponent" Directory="ProgramMenuDir" Guid="*">
+      <Shortcut
+        Id="StartMenuShortcut"
+        Name="LumeKit"
+        Description="LumeKit"
+        Target="[INSTALLFOLDER]BluetoothAudioReceiver.exe"
+        WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="ProgramMenuDirOnUninstall" On="uninstall" />
+      <RegistryValue
+        Root="HKCU"
+        Key="Software\kk5568\BluetoothAudioReceiver"
+        Name="Installed"
+        Type="integer"
+        Value="1"
+        KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>
