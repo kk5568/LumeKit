@@ -11,24 +11,24 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
     public partial string Message { get; set; } = "自动亮度";
 
     [ObservableProperty]
-    private bool _autoBrightnessEnabled;
+    public partial bool AutoBrightnessEnabled { get; set; }
     public string AutoBrightnessEnabledText => AutoBrightnessEnabled ? "开" : "关";
 
     [ObservableProperty]
-    private bool _usePreferenceEnabled;
+    public partial bool UsePreferenceEnabled { get; set; }
     public string UsePreferenceEnabledText => UsePreferenceEnabled ? "开" : "关";
 
     [ObservableProperty]
-    private byte _minBrightness;
+    public partial byte MinBrightness { get; set; }
 
     [ObservableProperty]
-    private byte _maxBrightness;
+    public partial byte MaxBrightness { get; set; }
 
     [ObservableProperty]
-    private double _minColorTemp;
+    public partial double MinColorTemp { get; set; }
 
     [ObservableProperty]
-    private double _maxColorTemp;
+    public partial double MaxColorTemp { get; set; }
 
     private readonly BrightnessSettings _brightnessSettings;
     private readonly CameraReaderService _cameraReader;

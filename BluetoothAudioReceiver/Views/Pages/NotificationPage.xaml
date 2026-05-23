@@ -1,3 +1,12 @@
+﻿<!--
+统一入口：本文件是当前 UI 的第一修改位，布局、尺寸、字体、透明度优先从这里统一维护。
+层结构：Root -> 容器 -> 分区/卡片 -> 行/列 -> 文本 / 图标 / 按钮。
+定位方式：窗口级位置由代码控制，页面内用 Grid.Row / Grid.Column / Alignment / Margin / Padding。
+尺寸参考：窗口 Width / Height 常用 260x400、600x110、1024x768；推荐范围 Width 240~1280，Height 96~900。
+字体参考：TitleFontSize 10~14，RowFontSize 9~12，HotkeyFontSize 8~10，IconFontSize 10~16。
+透明度参考：背景 0.90~1.00，次级文字 0.68~0.80，禁用态 0.38~0.55。
+修改顺序：先改统一入口，再改子层控件；避免在每个子控件里重复写硬编码数值。
+-->
 <Page
     x:Class="BluetoothAudioReceiver.Views.Pages.NotificationPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -8,7 +17,7 @@
         <StackPanel Spacing="16">
             <Grid Style="{StaticResource CardPanelStyle}" Padding="20">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="悬浮通知" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="鎮诞閫氱煡" FontSize="18" FontWeight="SemiBold" />
                     <TextBlock Text="控制连接/断开时的悬浮通知行为。" Opacity="0.75" TextWrapping="Wrap" />
 
                     <Grid ColumnSpacing="10">
@@ -16,7 +25,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="音频通知" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="闊抽閫氱煡" VerticalAlignment="Center" />
                         <Grid Grid.Column="1" Width="160" HorizontalAlignment="Right" ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="30" />
@@ -32,7 +41,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="托盘浮窗出现时隐藏悬浮通知" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="鎵樼洏娴獥鍑虹幇鏃堕殣钘忔偓娴€氱煡" VerticalAlignment="Center" />
                         <Grid Grid.Column="1" Width="160" HorizontalAlignment="Right" ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="30" />
@@ -48,7 +57,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="游戏场景禁用通知" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="娓告垙鍦烘櫙绂佺敤閫氱煡" VerticalAlignment="Center" />
                         <Grid Grid.Column="1" Width="160" HorizontalAlignment="Right" ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="30" />
@@ -64,7 +73,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="视频场景禁用通知" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="瑙嗛鍦烘櫙绂佺敤閫氱煡" VerticalAlignment="Center" />
                         <Grid Grid.Column="1" Width="160" HorizontalAlignment="Right" ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="30" />
@@ -80,7 +89,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="全屏场景禁用通知" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="鍏ㄥ睆鍦烘櫙绂佺敤閫氱煡" VerticalAlignment="Center" />
                         <Grid Grid.Column="1" Width="160" HorizontalAlignment="Right" ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="30" />
@@ -96,7 +105,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="录屏/直播场景禁用通知" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="褰曞睆/鐩存挱鍦烘櫙绂佺敤閫氱煡" VerticalAlignment="Center" />
                         <Grid Grid.Column="1" Width="160" HorizontalAlignment="Right" ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="30" />
@@ -111,3 +120,6 @@
         </StackPanel>
     </ScrollViewer>
 </Page>
+
+
+
