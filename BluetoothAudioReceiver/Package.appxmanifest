@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
@@ -17,7 +17,7 @@
   <Identity
     Name="kk5568.BluetoothAudioReceiver"
     Publisher="CN=kk5568"
-    Version="1.6.0.0" />
+    Version="1.6.1.0" />
     
   <mp:PhoneIdentity PhoneProductId="8f256a41-5ee3-4218-97c6-12e1f8d5c234" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
     
@@ -29,8 +29,8 @@
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Universal" MinVersion="1.6.0.0" MaxVersionTested="10.0.22621.0" />
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="1.6.0.0" MaxVersionTested="10.0.22621.0" />
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
   </Dependencies>
 
   <Resources>

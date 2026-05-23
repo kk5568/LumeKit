@@ -1,15 +1,15 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
     Name="LumeKit"
     Manufacturer="kk5568"
-    Version="1.6.0"
+    Version="1.6.1"
     UpgradeCode="8E5F3F2C-1A82-4C75-90D2-6B132B5A2F8C"
     InstallerVersion="500"
     Scope="perMachine"
     Compressed="yes">
 
-    <MajorUpgrade DowngradeErrorMessage="已安装更新版本，无法降级安装。" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of LumeKit is already installed. Downgrade installation is not allowed." />
     <MediaTemplate EmbedCab="yes" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
