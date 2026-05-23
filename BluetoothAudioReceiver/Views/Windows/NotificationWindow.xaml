@@ -1,3 +1,12 @@
+﻿<!--
+统一入口：本文件是当前 UI 的第一修改位，布局、尺寸、字体、透明度优先从这里统一维护。
+层结构：Root -> 容器 -> 分区/卡片 -> 行/列 -> 文本 / 图标 / 按钮。
+定位方式：窗口级位置由代码控制，页面内用 Grid.Row / Grid.Column / Alignment / Margin / Padding。
+尺寸参考：窗口 Width / Height 常用 260x400、600x110、1024x768；推荐范围 Width 240~1280，Height 96~900。
+字体参考：TitleFontSize 10~14，RowFontSize 9~12，HotkeyFontSize 8~10，IconFontSize 10~16。
+透明度参考：背景 0.90~1.00，次级文字 0.68~0.80，禁用态 0.38~0.55。
+修改顺序：先改统一入口，再改子层控件；避免在每个子控件里重复写硬编码数值。
+-->
 <windowex:WindowEx
     x:Class="BluetoothAudioReceiver.Views.Windows.NotificationWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -9,19 +18,19 @@
     Height="110"
     mc:Ignorable="d">
 
-    <!-- RootContainer：整窗内容根层，负责承载卡片和描边 -->
+    <!-- RootContainer锛氭暣绐楀唴瀹规牴灞傦紝璐熻矗鎵胯浇鍗＄墖鍜屾弿杈?-->
     <Grid x:Name="RootContainer" Opacity="1">
-        <!-- NotificationCard：通知卡片主体。
-             作用：圆角、背景、内部留白都在这里控制。
-             修改建议：想改大小改 Height / Padding，想改圆角改 CornerRadius。 -->
+        <!-- NotificationCard锛氶€氱煡鍗＄墖涓讳綋銆?
+             浣滅敤锛氬渾瑙掋€佽儗鏅€佸唴閮ㄧ暀鐧介兘鍦ㄨ繖閲屾帶鍒躲€?
+             淇敼寤鸿锛氭兂鏀瑰ぇ灏忔敼 Height / Padding锛屾兂鏀瑰渾瑙掓敼 CornerRadius銆?-->
         <Border x:Name="NotificationCard"
                 VerticalAlignment="Stretch"
                 Padding="16,0"
                 CornerRadius="8"
                 Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
-            <!-- CenterRow：三列中心对齐排版层。
-                 作用：图标、名称、状态都围绕同一条垂直中线排布。
-                 修改建议：如果整行偏上/偏下，优先改这里的 Margin。 -->
+            <!-- CenterRow锛氫笁鍒椾腑蹇冨榻愭帓鐗堝眰銆?
+                 浣滅敤锛氬浘鏍囥€佸悕绉般€佺姸鎬侀兘鍥寸粫鍚屼竴鏉″瀭鐩翠腑绾挎帓甯冦€?
+                 淇敼寤鸿锛氬鏋滄暣琛屽亸涓?鍋忎笅锛屼紭鍏堟敼杩欓噷鐨?Margin銆?-->
             <Grid VerticalAlignment="Center"
                   HorizontalAlignment="Stretch"
                   Margin="0,0,0,0">
@@ -31,9 +40,9 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- 图标区：左侧圆形图标底座。
-                     作用：固定图标占位，避免文字长度变化时图标跳动。
-                     修改建议：想调图标大小，改 Width / Height / FontSize。 -->
+                <!-- 鍥炬爣鍖猴細宸︿晶鍦嗗舰鍥炬爣搴曞骇銆?
+                     浣滅敤锛氬浐瀹氬浘鏍囧崰浣嶏紝閬垮厤鏂囧瓧闀垮害鍙樺寲鏃跺浘鏍囪烦鍔ㄣ€?
+                     淇敼寤鸿锛氭兂璋冨浘鏍囧ぇ灏忥紝鏀?Width / Height / FontSize銆?-->
                 <Grid Width="{x:Bind IconBoxSize}"
                       Height="{x:Bind IconBoxSize}"
                       VerticalAlignment="Center"
@@ -48,9 +57,9 @@
                               Glyph="&#xE7C9;" />
                 </Grid>
 
-                <!-- 名称区：中间主文本。
-                     作用：显示设备名称或通知主标题。
-                     修改建议：想改视觉位置，优先改这一列容器的 Margin。 -->
+                <!-- 鍚嶇О鍖猴細涓棿涓绘枃鏈€?
+                     浣滅敤锛氭樉绀鸿澶囧悕绉版垨閫氱煡涓绘爣棰樸€?
+                     淇敼寤鸿锛氭兂鏀硅瑙変綅缃紝浼樺厛鏀硅繖涓€鍒楀鍣ㄧ殑 Margin銆?-->
                 <Grid Grid.Column="1"
                       Height="{x:Bind ContentBoxHeight}"
                       VerticalAlignment="Center"
@@ -74,9 +83,9 @@
                     </TextBlock>
                 </Grid>
 
-                <!-- 状态区：右侧补充文本。
-                     作用：显示连接状态、开关状态或简短说明。
-                     修改建议：想更贴右改 HorizontalAlignment，想更弱改 Opacity。 -->
+                <!-- 鐘舵€佸尯锛氬彸渚цˉ鍏呮枃鏈€?
+                     浣滅敤锛氭樉绀鸿繛鎺ョ姸鎬併€佸紑鍏崇姸鎬佹垨绠€鐭鏄庛€?
+                     淇敼寤鸿锛氭兂鏇磋创鍙虫敼 HorizontalAlignment锛屾兂鏇村急鏀?Opacity銆?-->
                 <Grid Grid.Column="2"
                       Height="{x:Bind ContentBoxHeight}"
                       VerticalAlignment="Center"
@@ -103,7 +112,7 @@
             </Grid>
         </Border>
 
-        <!-- 描边层：只负责边缘层次，不参与排版。 -->
+        <!-- 鎻忚竟灞傦細鍙礋璐ｈ竟缂樺眰娆★紝涓嶅弬涓庢帓鐗堛€?-->
         <Border CornerRadius="8"
                 BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
                 BorderThickness="1"
@@ -111,3 +120,6 @@
                 IsHitTestVisible="False" />
     </Grid>
 </windowex:WindowEx>
+
+
+

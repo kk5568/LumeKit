@@ -1,8 +1,13 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace BluetoothAudioReceiver.ViewModels.Pages;
 
-public sealed class DeviceLineItem
+public partial class DeviceLineItem : ObservableObject
 {
-    public string Name { get; set; } = string.Empty;
-    public string Glyph { get; set; } = "\uE7F5";
+    [ObservableProperty]
+    public partial string Name { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string Glyph { get; set; } = "\uE7F5";
 }
 

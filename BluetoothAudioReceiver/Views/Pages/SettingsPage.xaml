@@ -1,3 +1,12 @@
+﻿<!--
+统一入口：本文件是当前 UI 的第一修改位，布局、尺寸、字体、透明度优先从这里统一维护。
+层结构：Root -> 容器 -> 分区/卡片 -> 行/列 -> 文本 / 图标 / 按钮。
+定位方式：窗口级位置由代码控制，页面内用 Grid.Row / Grid.Column / Alignment / Margin / Padding。
+尺寸参考：窗口 Width / Height 常用 260x400、600x110、1024x768；推荐范围 Width 240~1280，Height 96~900。
+字体参考：TitleFontSize 10~14，RowFontSize 9~12，HotkeyFontSize 8~10，IconFontSize 10~16。
+透明度参考：背景 0.90~1.00，次级文字 0.68~0.80，禁用态 0.38~0.55。
+修改顺序：先改统一入口，再改子层控件；避免在每个子控件里重复写硬编码数值。
+-->
 <Page
     x:Class="BluetoothAudioReceiver.Views.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -136,3 +145,6 @@
         </ScrollViewer>
     </Grid>
 </Page>
+
+
+

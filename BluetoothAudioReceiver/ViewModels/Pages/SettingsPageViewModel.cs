@@ -48,22 +48,22 @@ public partial class SettingsPageViewModel : ObservableRecipient, INavigationAwa
     #region Auto Brightness Properties
 
     [ObservableProperty]
-    private bool _autoBrightnessEnabled;
+    public partial bool AutoBrightnessEnabled { get; set; }
 
     [ObservableProperty]
-    private bool _usePreferenceEnabled;
+    public partial bool UsePreferenceEnabled { get; set; }
 
     [ObservableProperty]
-    private byte _minBrightness;
+    public partial byte MinBrightness { get; set; }
 
     [ObservableProperty]
-    private byte _maxBrightness;
+    public partial byte MaxBrightness { get; set; }
 
     [ObservableProperty]
-    private double _minColorTemp;
+    public partial double MinColorTemp { get; set; }
 
     [ObservableProperty]
-    private double _maxColorTemp;
+    public partial double MaxColorTemp { get; set; }
 
     #endregion
 

@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 
 namespace BluetoothAudioReceiver.ViewModels.Pages;
@@ -13,17 +13,18 @@ public partial class HotkeyBindingCard : ObservableObject
     public partial string Hotkey { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string DeviceNamesText { get; set; } = "未选择设备";
+    public partial string DeviceNamesText { get; set; } = "No device selected";
 
     [ObservableProperty]
     public partial string StatusText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string HotkeyDisplay { get; set; } = "未设置";
 
     public ObservableCollection<string> DeviceNameLines { get; } = [];
     public ObservableCollection<DeviceLineItem> DeviceLines { get; } = [];
 
     public List<string> SelectedDeviceIds { get; } = [];
-
-    public string HotkeyDisplay => string.IsNullOrWhiteSpace(Hotkey) ? "未设置" : Hotkey;
 
     public void SetSelectedDeviceIds(IEnumerable<string> ids)
     {
@@ -54,6 +55,6 @@ public partial class HotkeyBindingCard : ObservableObject
 
     partial void OnHotkeyChanged(string value)
     {
-        OnPropertyChanged(nameof(HotkeyDisplay));
+        HotkeyDisplay = string.IsNullOrWhiteSpace(value) ? "未设置" : value;
     }
 }

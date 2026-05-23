@@ -45,6 +45,8 @@
     <Nullable>enable</Nullable>
     <EnableMsixTooling>true</EnableMsixTooling>
     <LangVersion>preview</LangVersion>
+    <NoWarn>WMC1506;$(NoWarn)</NoWarn>
+    <WarningsNotAsErrors>WMC1506;$(WarningsNotAsErrors)</WarningsNotAsErrors>
     <!-- Custom Settings -->
     <DefineConstants>DISABLE_XAML_GENERATED_MAIN;$(DefineConstants)</DefineConstants><!-- Custom Program -->
     <DefineConstants Condition="'$(Configuration)'=='Release'">SINGLE_INSTANCE;$(DefineConstants)</DefineConstants><!-- Single Instance -->
