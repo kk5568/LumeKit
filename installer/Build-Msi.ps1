@@ -16,6 +16,29 @@ $outputDir = if ([string]::IsNullOrWhiteSpace($OutputDir)) {
     $OutputDir
 }
 $propsPath = Join-Path $repoRoot 'Directory.Build.props'
+$publishDir = Join-Path $projectDir 'bin\Release\net10.0-windows10.0.22621.0\win-x64\publish'
+$wixToolDir = Join-Path $repoRoot '.wix'
+$dotnetHome = Join-Path $repoRoot '.dotnet-home'
+$nugetConfigPath = Join-Path $dotnetHome 'NuGet\NuGet.Config'
+
+New-Item -ItemType Directory -Path $dotnetHome -Force | Out-Null
+New-Item -ItemType Directory -Path (Split-Path -Parent $nugetConfigPath) -Force | Out-Null
+$env:DOTNET_CLI_HOME = $dotnetHome
+$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
+$env:APPDATA = $dotnetHome
+$env:NUGET_PACKAGES = Join-Path $dotnetHome 'packages'
+
+if (-not (Test-Path -LiteralPath $nugetConfigPath)) {
+    @'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+  </packageSources>
+</configuration>
+'@ | Set-Content -LiteralPath $nugetConfigPath -Encoding utf8
+}
 
 function Get-PropsValue {
     param(
@@ -135,6 +158,26 @@ function Set-PropsValue {
     Set-Content -LiteralPath $Path -Value $updated -Encoding utf8
 }
 
+function Get-WixCommand {
+    $wix = Get-Command wix -ErrorAction SilentlyContinue
+    if ($null -ne $wix) {
+        return $wix.Source
+    }
+
+    $wixExe = Join-Path $wixToolDir 'wix.exe'
+    if (-not (Test-Path -LiteralPath $wixExe)) {
+        Write-Host "WiX CLI was not found. Installing it in $wixToolDir..."
+        New-Item -ItemType Directory -Path $wixToolDir -Force | Out-Null
+        dotnet tool install wix --tool-path $wixToolDir --version 6.* --no-cache --configfile $nugetConfigPath |
+            Out-Host
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $wixExe)) {
+            throw "Unable to install WiX CLI. Install WiX 6 manually or ensure NuGet access is available, then run this script again."
+        }
+    }
+
+    return $wixExe
+}
+
 $currentVersionText = Get-PropsValue -Path $propsPath -PropertyName 'LumeKitVersion'
 $nextDisplayVersion = Get-NextVersion -Current $currentVersionText -BumpKind $Bump
 $nextPackageVersion = Convert-ToPackageVersion -DisplayVersion $nextDisplayVersion
@@ -155,18 +198,32 @@ Write-Host "Syncing version artifacts for $nextPackageVersion..."
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $installerDir 'Sync-Version.ps1') -Version $nextPackageVersion
 
 Write-Host "Publishing Release x64..."
-dotnet publish (Join-Path $projectDir 'BluetoothAudioReceiver.csproj') -c Release -p:Platform=x64 -r win-x64 --self-contained true --no-restore
+dotnet publish (Join-Path $projectDir 'BluetoothAudioReceiver.csproj') `
+    -c Release `
+    -p:Platform=x64 `
+    -p:PublishReadyToRun=false `
+    -r win-x64 `
+    --self-contained true `
+    --no-restore
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE."
+}
+
+if (-not (Test-Path -LiteralPath (Join-Path $publishDir 'BluetoothAudioReceiver.exe'))) {
+    throw "Published application was not found: $publishDir"
+}
 
 if (Test-Path -LiteralPath $msiPath) {
     Remove-Item -LiteralPath $msiPath -Force
 }
 
 Write-Host "Building MSI $msiName..."
+$wixCommand = Get-WixCommand
 Push-Location $installerDir
 try {
-    wix build BluetoothAudioReceiver.wxs -arch x64 -out $msiPath
+    & $wixCommand build BluetoothAudioReceiver.wxs -arch x64 -out $msiPath
     if ($LASTEXITCODE -ne 0) {
-        throw "WiX build failed with exit code $LASTEXITCODE. If this is the first WiX 7 run on this machine, accept the OSMF EULA first: https://wixtoolset.org/osmf/"
+        throw "WiX build failed with exit code $LASTEXITCODE."
     }
 }
 finally {

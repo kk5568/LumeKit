@@ -3,7 +3,7 @@
   <Package
     Name="LumeKit"
     Manufacturer="kk5568"
-    Version="26.9.25.162"
+    Version="26.10.1.171"
     UpgradeCode="8E5F3F2C-1A82-4C75-90D2-6B132B5A2F8C"
     InstallerVersion="500"
     Scope="perMachine"
@@ -50,6 +50,15 @@
     </Component>
   </Fragment>
 </Wix>
+
+
+
+
+
+
+
+
+
 
 
 
