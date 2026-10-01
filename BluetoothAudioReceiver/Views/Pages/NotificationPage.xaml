@@ -1,0 +1,202 @@
+﻿<Page
+    x:Class="BluetoothAudioReceiver.Views.Pages.NotificationPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="using:BluetoothAudioReceiver.Behaviors"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:BluetoothAudioReceiver.ViewModels.Pages"
+    behaviors:NavigationViewHeaderBehavior.HeaderContext="Shell_Notification.Content"
+    d:DataContext="{d:DesignInstance Type=viewmodels:NotificationPageViewModel}"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer
+        IsTabStop="False"
+        UseSystemFocusVisuals="False"
+        VerticalScrollBarVisibility="Hidden"
+        VerticalScrollMode="Auto">
+        <StackPanel Padding="{StaticResource ScrollViewerContentPadding}"
+                    Spacing="{StaticResource SettingsCardSpacing}">
+            <TextBlock Text="通知设置"
+                       Style="{ThemeResource SettingsSectionHeaderTextBlockStyle}" />
+            <TextBlock Text="模块通知开关"
+                       Style="{ThemeResource SettingsSectionHeaderTextBlockStyle}" />
+
+            <controls:SettingsCard Header="音频切换通知"
+                                   Description="控制音频输入输出切换时的悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.AudioSwitchNotificationEnabledText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.AudioSwitchNotificationEnabled, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                   OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="自动亮度通知"
+                                   Description="控制自动亮度调整时的悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.AutoBrightnessNotificationEnabledText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.AutoBrightnessNotificationEnabled, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                   OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="自动深浅通知"
+                                   Description="控制自动深浅切换相关的悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.AutoDayNightNotificationEnabledText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.AutoDayNightNotificationEnabled, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                   OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="自动化执行通知"
+                                   Description="控制自动化执行结果的悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.AutomationExecutionNotificationEnabledText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.AutomationExecutionNotificationEnabled, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                   OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="代理状态提醒"
+                                   Description="检测到系统代理开启或关闭时弹出悬浮提醒。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.ProxyStatusNotificationEnabledText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.ProxyStatusNotificationEnabled, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                  OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <TextBlock Text="悬浮通知测试"
+                       Style="{ThemeResource SettingsSectionHeaderTextBlockStyle}" />
+
+            <controls:SettingsCard Header="测试 DeskBox 悬浮通知"
+                                   Description="点击按钮直接显示测试浮层，不需要设置或按快捷键。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <ComboBox Width="120"
+                              SelectedItem="{x:Bind ViewModel.DeskBoxFloatingPreviewType, Mode=TwoWay}"
+                              ItemsSource="{x:Bind ViewModel.DeskBoxFloatingPreviewTypeOptions}" />
+                    <ComboBox Width="120"
+                              SelectedItem="{x:Bind ViewModel.DeskBoxFloatingTestDuration, Mode=TwoWay}"
+                              ItemsSource="{x:Bind ViewModel.DeskBoxFloatingTestDurationOptions}" />
+                    <Button Content="测试"
+                            Command="{x:Bind ViewModel.TestNotificationCommand}"
+                            MinWidth="88" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <TextBlock Text="场景开关"
+                       Style="{ThemeResource SettingsSectionHeaderTextBlockStyle}" />
+
+            <controls:SettingsCard Header="托盘浮窗出现时隐藏悬浮通知"
+                                   Description="托盘面板打开时不弹出悬浮提醒。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.HideNotificationWhenTrayPopupVisibleText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.HideNotificationWhenTrayPopupVisible, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                  OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="游戏场景禁用通知"
+                                   Description="在游戏场景中不显示悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.DisableNotificationInGameText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.DisableNotificationInGame, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                  OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="视频场景禁用通知"
+                                   Description="在视频播放场景中不显示悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.DisableNotificationInVideoText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.DisableNotificationInVideo, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                  OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="全屏场景禁用通知"
+                                   Description="全屏时不显示悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.DisableNotificationInFullscreenText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.DisableNotificationInFullscreen, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                  OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="录屏/直播场景禁用通知"
+                                   Description="录屏或直播时不显示悬浮通知。">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{x:Bind ViewModel.DisableNotificationInRecordingOrLiveText, Mode=OneWay}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.DisableNotificationInRecordingOrLive, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  OnContent=""
+                                  OffContent="" />
+                </StackPanel>
+            </controls:SettingsCard>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

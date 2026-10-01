@@ -1,0 +1,101 @@
+# Root metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userprefs
+*.csproj.user
+*.sln.docstates
+*.dbmdl
+*.jfm
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+
+# .NET / MSBuild
+bin/
+obj/
+publish/
+TestResults/
+artifacts/
+out/
+
+# Logs / diagnostics
+*.log
+*.binlog
+*.trace
+*.etl
+
+# NuGet / local packages
+packages/
+*.nupkg
+*.snupkg
+
+# Installer / signing outputs
+installer/*.msi
+installer/*.exe
+installer/*.wixpdb
+installer/*.cab
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.appinstaller
+*.msixupload
+*.appxsym
+*.cer
+*.pfx
+*.p12
+
+# Windows app packaging outputs
+BluetoothAudioReceiver/AppPackages/
+BluetoothAudioReceiver/BundleArtifacts/
+
+# Generated caches / temp
+*.tmp
+*.temp
+*.cache
+*.bak
+*.orig
+
+# Local automation / runtime data
+*.db-shm
+*.db-wal
+
+# External reference sources, vendor drops, and backups
+参考项目/
+
+# Keep source and config files in installer
+!installer/
+!installer/*.wxs
+!installer/*.wxl
+!installer/*.props
+!installer/*.targets
+
+# Keep repository metadata and docs
+!.editorconfig
+!.gitattributes
+!.gitignore
+!.vsconfig
+!*.md
+!*.txt
+!*.json
+!*.yml
+!*.yaml
+!*.props
+!*.targets
+!*.sln
+!*.csproj
+!*.xaml
+!*.cs
+!*.resw
+!*.xml
+!*.config
+!*.wxs
+!*.wxl

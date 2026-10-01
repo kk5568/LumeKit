@@ -1,0 +1,385 @@
+using DeskBox.Models;
+using System.Text.Json;
+
+namespace DeskBox.Services;
+
+/// <summary>
+/// Defines a single settings migration step from one schema version to the next.
+/// </summary>
+public interface ISettingsMigration
+{
+    /// <summary>The source schema version this migration upgrades from.</summary>
+    int FromVersion { get; }
+
+    /// <summary>Applies the migration to the given settings instance.</summary>
+    void Migrate(AppSettings settings);
+}
+
+/// <summary>
+/// Pipeline that executes registered settings migrations in version order.
+/// </summary>
+public sealed class SettingsMigrationPipeline
+{
+    /// <summary>The current schema version that the application expects.</summary>
+    public const int CurrentSchemaVersion = 9;
+
+    private readonly List<ISettingsMigration> _migrations = [];
+
+    public SettingsMigrationPipeline()
+    {
+        // Register migrations in order
+        _migrations.Add(new Migration_0_To_1());
+        _migrations.Add(new Migration_1_To_2());
+        _migrations.Add(new Migration_2_To_3());
+        _migrations.Add(new Migration_3_To_4());
+        _migrations.Add(new Migration_4_To_5());
+        _migrations.Add(new Migration_5_To_6());
+        _migrations.Add(new Migration_6_To_7());
+        _migrations.Add(new Migration_7_To_8());
+        _migrations.Add(new Migration_8_To_9());
+    }
+
+    /// <summary>
+    /// Test seam for fault-injection: the chain behavior (step failures,
+    /// checkpoints, ordering) is what the tests pin, not the real steps.
+    /// </summary>
+    internal SettingsMigrationPipeline(IEnumerable<ISettingsMigration> migrations)
+    {
+        _migrations.AddRange(migrations);
+    }
+
+    /// <summary>
+    /// Runs all necessary migrations to bring the settings from their current
+    /// schema version up to <see cref="CurrentSchemaVersion"/>. Runs
+    /// copy-on-write: every step executes on a deserialized copy of the last
+    /// committed state and a failed step is discarded wholesale, so the
+    /// returned graph is either fully migrated through its recorded
+    /// checkpoint or byte-for-byte the input. The caller replaces its
+    /// settings reference with the returned one.
+    /// </summary>
+    public (AppSettings Settings, bool AnyApplied) RunMigrationsOnCopy(AppSettings settings)
+    {
+        if (settings.SchemaVersion >= CurrentSchemaVersion)
+        {
+            return (settings, false);
+        }
+
+        AppSettings working = settings;
+        int version = settings.SchemaVersion;
+        bool anyApplied = false;
+
+        foreach (var migration in _migrations.OrderBy(m => m.FromVersion))
+        {
+            if (migration.FromVersion != version)
+            {
+                continue;
+            }
+
+            if (migration.FromVersion >= CurrentSchemaVersion)
+            {
+                break;
+            }
+
+            byte[]? snapshot = TrySerializeSettings(working);
+            if (snapshot is null)
+            {
+                App.Log(
+                    $"[SettingsMigration] Migration from version {migration.FromVersion} skipped: " +
+                    "the pre-step settings snapshot could not be taken.");
+                break;
+            }
+
+            if (TryDeserializeSettings(snapshot) is not { } stepCopy)
+            {
+                App.Log(
+                    $"[SettingsMigration] Migration from version {migration.FromVersion} skipped: " +
+                    "the pre-step settings snapshot could not be read back.");
+                break;
+            }
+
+            try
+            {
+                migration.Migrate(stepCopy);
+            }
+            catch (Exception ex)
+            {
+                // A failed step must stop the chain and leave the graph
+                // untouched: every later migration assumes the schema the
+                // failed step was supposed to produce, and the discarded copy
+                // carries no half-applied mutations.
+                App.Log(
+                    $"[SettingsMigration] Migration from version {migration.FromVersion} failed: {ex.Message}; " +
+                    $"state untouched, stopping at schema version {version} (will retry on next launch)");
+                break;
+            }
+
+            working = stepCopy;
+            version = migration.FromVersion + 1;
+            anyApplied = true;
+            App.Log($"[SettingsMigration] Applied migration from version {migration.FromVersion} to {version}");
+        }
+
+        // Record the checkpoint the chain actually reached. A partial run
+        // keeps the last successful version so the failed step retries next
+        // launch; only a full pass reaches CurrentSchemaVersion.
+        working.SchemaVersion = version;
+        return (working, anyApplied);
+    }
+
+    private static byte[]? TrySerializeSettings(AppSettings settings)
+    {
+        try
+        {
+            return JsonSerializer.SerializeToUtf8Bytes(
+                settings,
+                SettingsJsonContext.Default.AppSettings);
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[SettingsMigration] Settings snapshot failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static AppSettings? TryDeserializeSettings(byte[] snapshot)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize(
+                snapshot,
+                SettingsJsonContext.Default.AppSettings);
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[SettingsMigration] Settings snapshot read-back failed: {ex.Message}");
+            return null;
+        }
+    }
+}
+
+/// <summary>
+/// Initial migration: handles legacy settings that predate the schema versioning system.
+/// Consolidates scattered migration logic (WidgetCompactSettingsVersion, legacy WidgetCollapsedStyle, etc.)
+/// into a single versioned step.
+/// </summary>
+internal sealed class Migration_0_To_1 : ISettingsMigration
+{
+    public int FromVersion => 0;
+
+    public void Migrate(AppSettings settings)
+    {
+        // Legacy migration: ensure WidgetCompactSettingsVersion is at least 1
+        // (older settings may have version 0 which used a different compact layout)
+        if (settings.WidgetCompactSettingsVersion < 1)
+        {
+            settings.WidgetCompactSettingsVersion = 1;
+        }
+
+        // Legacy migration: normalize any obsolete WidgetCollapsedStyle values
+        // The old "Collapsed" style was replaced by "Click" behavior
+        if (string.Equals(settings.WidgetCollapseBehavior, "Collapsed", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.WidgetCollapseBehavior = SettingsService.WidgetCollapseBehaviorClick;
+        }
+
+        // Ensure FeatureWidgetEnabledStates dictionary is initialized
+        settings.FeatureWidgetEnabledStates ??= [];
+
+        // Ensure Widgets list is initialized
+        settings.Widgets ??= [];
+
+        // Ensure widget groups are initialized. Older settings have no groups.
+        settings.WidgetGroups ??= [];
+
+        // Ensure DeletedWidgetIds list is initialized
+        settings.DeletedWidgetIds ??= [];
+
+        // Ensure RecentOrganizationHistory is initialized
+        settings.RecentOrganizationHistory ??= [];
+    }
+}
+
+/// <summary>
+/// Removes the implicit wheel-off override written by the early Tabs
+/// compatibility migration. A group whose navigation follows the application
+/// default must also be able to follow the application's wheel setting.
+/// Explicit navigation styles and future per-group choices remain untouched.
+/// </summary>
+internal sealed class Migration_1_To_2 : ISettingsMigration
+{
+    public int FromVersion => 1;
+
+    public void Migrate(AppSettings settings)
+    {
+        settings.WidgetGroups ??= [];
+        foreach (WidgetGroupConfig group in settings.WidgetGroups)
+        {
+            if (string.Equals(
+                    WidgetGroupNavigationStyles.Normalize(
+                        group.NavigationStyle,
+                        allowFollowDefault: true),
+                    WidgetGroupNavigationStyles.FollowDefault,
+                    StringComparison.Ordinal) &&
+                group.WheelSwitchEnabled == false)
+            {
+                group.WheelSwitchEnabled = null;
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Repairs groups changed from Tabs to FollowDefault after schema version 2.
+/// Those groups could retain the compatibility wheel-off value even though
+/// the application-level wheel setting was enabled.
+/// </summary>
+internal sealed class Migration_2_To_3 : ISettingsMigration
+{
+    public int FromVersion => 2;
+
+    public void Migrate(AppSettings settings)
+    {
+        settings.WidgetGroups ??= [];
+        foreach (WidgetGroupConfig group in settings.WidgetGroups)
+        {
+            if (string.Equals(
+                    WidgetGroupNavigationStyles.Normalize(
+                        group.NavigationStyle,
+                        allowFollowDefault: true),
+                    WidgetGroupNavigationStyles.FollowDefault,
+                    StringComparison.Ordinal) &&
+                group.WheelSwitchEnabled == false)
+            {
+                group.WheelSwitchEnabled = null;
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Marks the legacy default file-widget experience as already resolved. Existing
+/// profiles must never receive a new default widget merely because they currently
+/// contain no file widgets. SettingsService resets this flag only when it knows
+/// that the settings file did not exist and a genuinely new profile was created.
+/// </summary>
+internal sealed class Migration_3_To_4 : ISettingsMigration
+{
+    public int FromVersion => 3;
+
+    public void Migrate(AppSettings settings)
+    {
+        settings.HasResolvedInitialFileWidgetSetup = true;
+    }
+}
+
+/// <summary>
+/// Migrates the legacy search result limit that was previously treated as an
+/// application default. Future 50, 100, and 200 selections are user choices
+/// and are preserved by normal settings validation.
+/// </summary>
+internal sealed class Migration_4_To_5 : ISettingsMigration
+{
+    public int FromVersion => 4;
+
+    public void Migrate(AppSettings settings)
+    {
+        if (settings.SearchMaxResults == 50)
+        {
+            settings.SearchMaxResults = 200;
+        }
+    }
+}
+
+/// <summary>
+/// Introduces bounded per-display-topology widget layouts. Existing geometry is
+/// intentionally left in place; the first stable startup captures it as the
+/// initial active profile without moving a window.
+/// </summary>
+internal sealed class Migration_5_To_6 : ISettingsMigration
+{
+    public int FromVersion => 5;
+
+    public void Migrate(AppSettings settings)
+    {
+        settings.WidgetTopologyLayouts ??= [];
+    }
+}
+
+/// <summary>
+/// Retires DeskBox's local filename index. Existing users must explicitly opt in
+/// before DeskBox sends queries to an installed Everything process.
+/// </summary>
+internal sealed class Migration_6_To_7 : ISettingsMigration
+{
+    public int FromVersion => 6;
+
+    public void Migrate(AppSettings settings)
+    {
+        settings.SearchEverythingEnabled = false;
+        settings.SearchEverythingExecutablePath = string.Empty;
+        settings.SearchEverythingAdvancedSyntaxEnabled = false;
+    }
+}
+
+/// <summary>
+/// Replaces the legacy all-or-nothing decorative-animation switch with
+/// individually selectable effects, and repairs retired unbounded performance
+/// values to finite choices.
+/// </summary>
+/// <summary>
+/// Splits the old stack master switch into the new master/auto pair. Legacy
+/// "enabled" meant automatic grouping, so it maps onto the new auto-stacking
+/// switch. The legacy "off" state kept manual stacks visible, which in the
+/// redesigned model is exactly (master on, auto off) — so every profile ends
+/// up with the master switch on and only automatic grouping opt-in.
+/// </summary>
+internal sealed class Migration_8_To_9 : ISettingsMigration
+{
+    public int FromVersion => 8;
+
+    public void Migrate(AppSettings settings)
+    {
+        settings.FileStackAutoStacking = settings.FileStacksEnabled;
+        settings.FileStacksEnabled = true;
+    }
+}
+
+internal sealed class Migration_7_To_8 : ISettingsMigration
+{
+    public int FromVersion => 7;
+
+    public void Migrate(AppSettings settings)
+    {
+        bool legacyAnimationsEnabled =
+            settings.EnableContinuousDecorativeAnimations;
+        settings.EnableTextMarqueeAnimations = legacyAnimationsEnabled;
+        settings.EnableVinylRotationAnimations = legacyAnimationsEnabled;
+        settings.EnableCompactAmbientAnimations = legacyAnimationsEnabled;
+
+        // Glance image rotation was independent of the retired switch. Preserve
+        // the existing user-visible behavior during upgrade.
+        settings.EnableGlanceImageAutoRotation = true;
+
+        bool retiredBestVisual = string.Equals(
+                settings.PerformanceMode,
+                PerformanceSettingsPolicy.ModeBestVisual,
+                StringComparison.OrdinalIgnoreCase);
+        if (retiredBestVisual)
+        {
+            PerformanceSettingsPolicy.ApplyPreset(
+                settings,
+                PerformanceSettingsPolicy.ModeBalanced);
+            return;
+        }
+
+        settings.HiddenCacheCleanupDelaySeconds =
+            PerformanceSettingsPolicy.NormalizeHiddenCacheCleanupDelaySeconds(
+                settings.HiddenCacheCleanupDelaySeconds);
+        settings.VisibleIdleCacheCleanupDelaySeconds =
+            PerformanceSettingsPolicy.NormalizeVisibleIdleCacheCleanupDelaySeconds(
+                settings.VisibleIdleCacheCleanupDelaySeconds);
+        settings.TransientWindowReleaseDelaySeconds =
+            PerformanceSettingsPolicy.NormalizeTransientWindowReleaseDelaySeconds(
+                settings.TransientWindowReleaseDelaySeconds);
+    }
+}

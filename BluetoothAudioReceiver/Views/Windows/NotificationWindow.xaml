@@ -1,0 +1,280 @@
+﻿<windowex:WindowEx
+    x:Class="BluetoothAudioReceiver.Views.Windows.NotificationWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:windowex="using:WinUIEx"
+    Width="600"
+    Height="110"
+    mc:Ignorable="d">
+
+    <Grid x:Name="RootContainer"
+          Opacity="1"
+          Background="Transparent">
+        <Border x:Name="NotificationSurface"
+                VerticalAlignment="Stretch"
+                CornerRadius="8"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                BorderThickness="1">
+            <Border x:Name="NotificationCard"
+                    VerticalAlignment="Stretch"
+                    Padding="16,0,16,0"
+                    CornerRadius="8"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="0">
+                <Grid>
+                    <Grid x:Name="DefaultContentGrid"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Stretch"
+                          Margin="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                    <Grid Width="{x:Bind IconBoxSize}"
+                          Height="{x:Bind IconBoxSize}"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Center"
+                          Margin="{x:Bind DefaultIconMargin}">
+                        <TextBlock x:Name="IconGlyph"
+                                   FontFamily="{x:Bind IconFontFamily}"
+                                   FontSize="{x:Bind IconFontSize}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Text="🔊" />
+                    </Grid>
+
+                    <Grid Grid.Column="1"
+                          Height="{x:Bind ContentBoxHeight}"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Stretch"
+                          Margin="0">
+                        <TextBlock x:Name="MessageText"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{x:Bind TextFontSize}"
+                                   FontWeight="Normal"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   LineHeight="{x:Bind TextFontSize}"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Center"
+                                   RenderTransformOrigin="0.5,0.5"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap">
+                            <TextBlock.RenderTransform>
+                                <TranslateTransform Y="1" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                    </Grid>
+
+                    <Grid Grid.Column="2"
+                          Height="{x:Bind ContentBoxHeight}"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Right"
+                          Margin="0">
+                        <TextBlock x:Name="StatusText"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{x:Bind TextFontSize}"
+                                   FontWeight="Normal"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   LineHeight="{x:Bind TextFontSize}"
+                                   Opacity="0.68"
+                                   TextAlignment="Right"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   RenderTransformOrigin="0.5,0.5"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap">
+                            <TextBlock.RenderTransform>
+                                <TranslateTransform Y="1" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                    </Grid>
+                </Grid>
+
+                <Grid x:Name="MergedContentGrid"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Stretch"
+                      Margin="0,0,0,2"
+                      RowSpacing="0"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Width="{x:Bind MergedIconBoxSize}"
+                          Height="{x:Bind MergedIconBoxSize}"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Center"
+                          Margin="{x:Bind DefaultIconMargin}">
+                        <TextBlock x:Name="MergedIconGlyph"
+                                   FontFamily="{x:Bind IconFontFamily}"
+                                   FontSize="{x:Bind MergedIconFontSize}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Text="🔊" />
+                    </Grid>
+
+                    <TextBlock x:Name="MergedMessageText"
+                               Grid.Column="1"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{x:Bind TextFontSize}"
+                               FontWeight="Normal"
+                               LineStackingStrategy="BlockLineHeight"
+                               LineHeight="{x:Bind TextFontSize}"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Center"
+                               RenderTransformOrigin="0.5,0.5"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform Y="1" />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+
+                    <TextBlock x:Name="MergedStatusText"
+                               Grid.Column="2"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{x:Bind TextFontSize}"
+                               FontWeight="Normal"
+                               LineStackingStrategy="BlockLineHeight"
+                               LineHeight="{x:Bind TextFontSize}"
+                               Opacity="0.68"
+                               TextAlignment="Right"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               RenderTransformOrigin="0.5,0.5"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform Y="1" />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+
+                    <StackPanel x:Name="MergedDetailsPanel"
+                                Grid.Column="1"
+                                Grid.ColumnSpan="2"
+                                Grid.Row="1"
+                                Orientation="Vertical"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Top"
+                                Spacing="2" />
+                </Grid>
+
+                <Grid x:Name="AutomationContentGrid"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Stretch"
+                      Margin="0"
+                      ColumnSpacing="0"
+                      RowSpacing="2"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Width="30"
+                          Height="30"
+                          VerticalAlignment="Top"
+                          HorizontalAlignment="Center"
+                          Margin="-8,0,0,0">
+                        <TextBlock x:Name="AutomationIconGlyph"
+                                   FontFamily="{x:Bind IconFontFamily}"
+                                   FontSize="{x:Bind AutomationIconFontSize}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                    Text="" />
+                    </Grid>
+
+                    <TextBlock x:Name="AutomationTitleText"
+                               Grid.Column="1"
+                                FontFamily="Segoe UI Variable Text"
+                                FontSize="13"
+                                FontWeight="Normal"
+                                LineStackingStrategy="BlockLineHeight"
+                                LineHeight="13"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Top"
+                                Margin="0"
+                                RenderTransformOrigin="0.5,0.5"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="NoWrap">
+                    </TextBlock>
+
+                    <StackPanel x:Name="AutomationActionsPanel"
+                                Grid.Column="1"
+                                Grid.Row="1"
+                                Orientation="Vertical"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Top"
+                                Margin="0,2,0,0"
+                                Spacing="0" />
+                </Grid>
+
+                <StackPanel x:Name="CompactContentPanel"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Margin="0"
+                            Spacing="12"
+                            Visibility="Collapsed">
+                    <TextBlock x:Name="CompactIconGlyph"
+                               FontFamily="{x:Bind IconFontFamily}"
+                               FontSize="{x:Bind IconFontSize}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Margin="{x:Bind CompactIconMargin}"
+                               Text="🔊" />
+                    <TextBlock x:Name="CompactMessageText"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{x:Bind TextFontSize}"
+                               FontWeight="Normal"
+                               LineStackingStrategy="BlockLineHeight"
+                               LineHeight="{x:Bind TextFontSize}"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Center"
+                               RenderTransformOrigin="0.5,0.5"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
+                               MaxWidth="220">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform Y="1" />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                    <TextBlock x:Name="CompactStatusText"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{x:Bind TextFontSize}"
+                               FontWeight="Normal"
+                               LineStackingStrategy="BlockLineHeight"
+                               LineHeight="{x:Bind TextFontSize}"
+                               Opacity="0.68"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Center"
+                               RenderTransformOrigin="0.5,0.5"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform Y="1" />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</windowex:WindowEx>

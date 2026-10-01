@@ -1,0 +1,463 @@
+﻿<Page
+    x:Class="BluetoothAudioReceiver.Views.Pages.ThemeManagementPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="using:BluetoothAudioReceiver.Behaviors"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:BluetoothAudioReceiver.ViewModels.Pages"
+    behaviors:NavigationViewHeaderBehavior.HeaderContext="Shell_ThemeManagement.Content"
+    d:DataContext="{d:DesignInstance Type=viewmodels:ThemeManagementPageViewModel}"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <Page.Resources>
+        <CornerRadius x:Key="ThemeMgmtCardCornerRadius">4</CornerRadius>
+        <Thickness x:Key="ThemeMgmtPageMargin">24</Thickness>
+        <Thickness x:Key="ThemeMgmtCardPadding">12</Thickness>
+        <x:Double x:Key="ThemeMgmtPageTitleFontSize">24</x:Double>
+        <x:Double x:Key="ThemeMgmtSectionTitleFontSize">16</x:Double>
+        <x:Double x:Key="ThemeMgmtBodyFontSize">14</x:Double>
+        <x:Double x:Key="ThemeMgmtHeaderSpacing">8</x:Double>
+        <x:Double x:Key="ThemeMgmtRowSpacing">10</x:Double>
+        <x:Double x:Key="ThemeMgmtPreviewHeight">180</x:Double>
+    </Page.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="{StaticResource ThemeMgmtPageMargin}"
+                    Spacing="12">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource ThemeMgmtCardCornerRadius}"
+                    Padding="{StaticResource ThemeMgmtCardPadding}">
+                <StackPanel Spacing="{StaticResource ThemeMgmtRowSpacing}">
+                    <TextBlock Text="数据看板"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{StaticResource ThemeMgmtSectionTitleFontSize}"
+                               FontWeight="SemiBold" />
+                    <Rectangle Height="1"
+                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}"
+                          RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="计划日出 / 日落"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{x:Bind ViewModel.ScheduledTimesText, Mode=OneWay}"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   HorizontalAlignment="Right" />
+
+                        <TextBlock Grid.Row="1"
+                                   Text="是否已修正"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="1"
+                                   Text="{x:Bind ViewModel.TimeCorrectionText, Mode=OneWay}"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="30 秒反转测试"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="{x:Bind ViewModel.ThemeTestStatusText, Mode=OneWay}"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="30秒后切换"
+                                MinWidth="112"
+                                Command="{x:Bind ViewModel.StartThirtySecondThemeFlipTestCommand}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource ThemeMgmtCardCornerRadius}"
+                    Padding="{StaticResource ThemeMgmtCardPadding}">
+                <StackPanel Spacing="{StaticResource ThemeMgmtRowSpacing}">
+                    <TextBlock Text="深色模式"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{StaticResource ThemeMgmtSectionTitleFontSize}"
+                               FontWeight="SemiBold" />
+                    <Rectangle Height="1"
+                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <TextBlock Text="{x:Bind ViewModel.AutoDayNightSunTimesText, Mode=OneWay}"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="启用深色模式"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsOn="{x:Bind ViewModel.AutoDayNightEnabled, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      MinWidth="0"
+                                      Margin="0"
+                                      Padding="0"
+                                      OnContent=""
+                                      OffContent="" />
+                    </Grid>
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}"
+                          RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0"
+                              ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="使用系统定位"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ToggleSwitch Grid.Column="1"
+                                          IsOn="{x:Bind ViewModel.AutoDayNightUseSystemLocation, Mode=TwoWay}"
+                                          VerticalAlignment="Center"
+                                          MinWidth="0"
+                                          Margin="0"
+                                          Padding="0"
+                                          OnContent=""
+                                          OffContent="" />
+                        </Grid>
+
+                        <Grid Grid.Row="1"
+                              ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="城市"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ToggleSwitch x:Name="CitySourceToggle"
+                                          Grid.Column="1"
+                                          VerticalAlignment="Center"
+                                          MinWidth="0"
+                                          Margin="0"
+                                          Padding="0"
+                                          OnContent=""
+                                          OffContent=""
+                                          Toggled="OnCitySourceToggleToggled" />
+                        </Grid>
+
+                        <Grid Grid.Row="2"
+                              ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="260" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="城市名称"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBox Grid.Column="1"
+                                     Text="{x:Bind ViewModel.AutoDayNightCityText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     PlaceholderText="上海" />
+                            <StackPanel Grid.Column="3"
+                                        Orientation="Horizontal"
+                                        Spacing="8">
+                                <Button Content="清空"
+                                        MinWidth="80"
+                                        Command="{x:Bind ViewModel.ClearCityCommand}" />
+                                <Button Content="保存"
+                                        MinWidth="80"
+                                        Command="{x:Bind ViewModel.SaveCityCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Grid.Row="3"
+                              ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="自定义夜间模式"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ToggleSwitch x:Name="CustomScheduleSourceToggle"
+                                          Grid.Column="1"
+                                          VerticalAlignment="Center"
+                                          MinWidth="0"
+                                          Margin="0"
+                                          Padding="0"
+                                          OnContent=""
+                                          OffContent=""
+                                          Toggled="OnCustomScheduleSourceToggleToggled" />
+                        </Grid>
+
+                        <StackPanel Grid.Row="4"
+                                    Spacing="8">
+                            <TextBlock Text="{x:Bind ViewModel.AutoDayNightNightScheduleText, Mode=OneWay}"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="1*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="1*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="开始时间"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Segoe UI Variable Text"
+                                           FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TimePicker Grid.Column="1"
+                                            SelectedTime="{x:Bind ViewModel.AutoDayNightNightStartTime, Mode=TwoWay}"
+                                            HorizontalAlignment="Stretch"
+                                            MinuteIncrement="1" />
+                                <TextBlock Grid.Column="2"
+                                           Text="结束时间"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Segoe UI Variable Text"
+                                           FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TimePicker Grid.Column="3"
+                                            SelectedTime="{x:Bind ViewModel.AutoDayNightNightEndTime, Mode=TwoWay}"
+                                            HorizontalAlignment="Stretch"
+                                            MinuteIncrement="1" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        Spacing="8">
+                                <Button Content="清空"
+                                        MinWidth="80"
+                                        Command="{x:Bind ViewModel.ClearNightScheduleCommand}" />
+                                <Button Content="保存"
+                                        MinWidth="80"
+                                        Command="{x:Bind ViewModel.SaveNightScheduleCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                </StackPanel>
+            </Border>
+
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource ThemeMgmtCardCornerRadius}"
+                    Padding="{StaticResource ThemeMgmtCardPadding}">
+                <StackPanel Spacing="{StaticResource ThemeMgmtRowSpacing}">
+                    <TextBlock Text="壁纸预览"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{StaticResource ThemeMgmtSectionTitleFontSize}"
+                               FontWeight="SemiBold" />
+                    <Rectangle Height="1"
+                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border CornerRadius="8"
+                                BorderThickness="1"
+                                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                Height="{StaticResource ThemeMgmtPreviewHeight}">
+                            <Grid>
+                                <Image Source="{x:Bind ViewModel.WallpaperPreviewSource, Mode=OneWay}"
+                                       Stretch="UniformToFill" />
+                                <TextBlock Text="处理前"
+                                           Margin="12"
+                                           VerticalAlignment="Top"
+                                           HorizontalAlignment="Left"
+                                           FontFamily="Segoe UI Variable Text"
+                                           FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                           FontWeight="SemiBold" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                CornerRadius="8"
+                                BorderThickness="1"
+                                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                Height="{StaticResource ThemeMgmtPreviewHeight}">
+                            <Grid>
+                                <Image Source="{x:Bind ViewModel.WallpaperPreviewSource, Mode=OneWay}"
+                                       Stretch="UniformToFill" />
+                                <Rectangle Fill="#FF000000"
+                                           Opacity="{x:Bind ViewModel.WallpaperDimOpacityValue, Mode=OneWay}" />
+                                <TextBlock Text="处理后"
+                                           Margin="12"
+                                           VerticalAlignment="Top"
+                                           HorizontalAlignment="Left"
+                                           FontFamily="Segoe UI Variable Text"
+                                           FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                           FontWeight="SemiBold" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.WallpaperPreviewStatusText, Mode=OneWay}"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="如果未获取到壁纸，请先刷新预览。"
+                                       FontFamily="Segoe UI Variable Text"
+                                       FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="刷新预览"
+                                MinWidth="92"
+                                Command="{x:Bind ViewModel.RefreshWallpaperPreviewCommand}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource ThemeMgmtCardCornerRadius}"
+                    Padding="{StaticResource ThemeMgmtCardPadding}">
+                <StackPanel Spacing="{StaticResource ThemeMgmtRowSpacing}">
+                    <TextBlock Text="壁纸暗化"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{StaticResource ThemeMgmtSectionTitleFontSize}"
+                               FontWeight="SemiBold" />
+                    <Rectangle Height="1"
+                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="启用壁纸暗化"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsOn="{x:Bind ViewModel.WallpaperDimEnabled, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      MinWidth="0"
+                                      Margin="0"
+                                      Padding="0"
+                                      OnContent=""
+                                      OffContent="" />
+                    </Grid>
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="跟随深色模式"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsOn="{x:Bind ViewModel.WallpaperDimFollowTheme, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      MinWidth="0"
+                                      Margin="0"
+                                      Padding="0"
+                                      OnContent=""
+                                      OffContent="" />
+                    </Grid>
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="退出时恢复原壁纸"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsOn="{x:Bind ViewModel.WallpaperDimRestoreOnExit, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      MinWidth="0"
+                                      Margin="0"
+                                      Padding="0"
+                                      OnContent=""
+                                      OffContent="" />
+                    </Grid>
+
+                    <Grid ColumnSpacing="{StaticResource ThemeMgmtHeaderSpacing}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="最小亮度"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Segoe UI Variable Text"
+                                   FontSize="{StaticResource ThemeMgmtBodyFontSize}" />
+                        <ComboBox Grid.Column="1"
+                                  Width="220"
+                                  HorizontalAlignment="Right"
+                                  ItemsSource="{x:Bind ViewModel.WallpaperDimOpacityOptions, Mode=OneWay}"
+                                  SelectedIndex="{x:Bind ViewModel.SelectedWallpaperDimOpacityIndex, Mode=TwoWay}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
