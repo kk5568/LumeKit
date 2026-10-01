@@ -71,6 +71,10 @@ BluetoothAudioReceiver/BundleArtifacts/
 # External reference sources, vendor drops, and backups
 参考项目/
 
+# Codex and local SDK caches
+.codex/
+.dotnet-home/
+
 # Keep source and config files in installer
 !installer/
 !installer/*.wxs
