@@ -1,3 +1,6 @@
+using BluetoothAudioReceiver.Automation;
+using BluetoothAudioReceiver.Automation.Models;
+using BluetoothAudioReceiver.Contracts.Services;
 using Microsoft.UI.Xaml;
 using Serilog;
 using System.Threading;
@@ -9,7 +12,7 @@ public sealed class AutoDayNightService : IDisposable
     private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(AutoDayNightService));
 
     private readonly IAppSettingsService _appSettingsService;
-    private readonly IAutomationMainlineBus _mainlineBus;
+    private readonly IAutomationTriggerBus _triggerBus;
     private readonly IThemeSelectorService _themeSelectorService;
     private readonly INotificationService _notificationService;
     private readonly SolarCalculator _solarCalculator;
@@ -53,7 +56,7 @@ public sealed class AutoDayNightService : IDisposable
 
     public AutoDayNightService(
         IAppSettingsService appSettingsService,
-        IAutomationMainlineBus mainlineBus,
+        IAutomationTriggerBus triggerBus,
         IThemeSelectorService themeSelectorService,
         INotificationService notificationService,
         SolarCalculator solarCalculator,
@@ -61,13 +64,13 @@ public sealed class AutoDayNightService : IDisposable
         ThemeManager themeManager)
     {
         _appSettingsService = appSettingsService;
-        _mainlineBus = mainlineBus;
+        _triggerBus = triggerBus;
         _themeSelectorService = themeSelectorService;
         _notificationService = notificationService;
         _solarCalculator = solarCalculator;
         _taskSchedulerManager = taskSchedulerManager;
         _themeManager = themeManager;
-        _mainlineBus.MessagePublished += OnMainlineMessagePublished;
+        _triggerBus.TriggerPublished += OnTriggerPublished;
     }
 
     public async Task StartAsync()
@@ -255,44 +258,45 @@ public sealed class AutoDayNightService : IDisposable
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnMainlineMessagePublished(object? sender, AutomationMainlineMessage message)
+    private void OnTriggerPublished(object? sender, TriggerEvent triggerEvent)
     {
         if (!_started || !_appSettingsService.AutoDayNightEnabled)
         {
             _log.Debug(
-                "Auto day/night ignored mainline message. Started={Started}, Enabled={Enabled}, Kind={Kind}, Reason={Reason}",
+                "Auto day/night ignored trigger. Started={Started}, Enabled={Enabled}, TriggerType={TriggerType}, Reason={Reason}",
                 _started,
                 _appSettingsService.AutoDayNightEnabled,
-                message.Kind,
-                message.Reason);
+                triggerEvent.TriggerType,
+                triggerEvent.Payload.TryGetValue("reason", out var ignoredReason) ? ignoredReason : null);
             return;
         }
 
-        if (message.Kind != AutomationMainlineMessageKind.SystemSignal)
+        if (!string.Equals(triggerEvent.TriggerType, AutomationSupportCatalog.TriggerSystemSignal, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(message.Reason))
+        if (!triggerEvent.Payload.TryGetValue("reason", out var reason) ||
+            string.IsNullOrWhiteSpace(reason))
         {
-            _log.Debug("Auto day/night ignored mainline system signal because reason is empty");
+            _log.Debug("Auto day/night ignored system signal because reason is empty");
             return;
         }
 
-        if (message.Reason.StartsWith("session-", StringComparison.OrdinalIgnoreCase) ||
-            message.Reason.StartsWith("system-time-", StringComparison.OrdinalIgnoreCase) ||
-            message.Reason.StartsWith("system-power-", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(message.Reason, "network-proxy-changed", StringComparison.OrdinalIgnoreCase) ||
-            message.Reason.StartsWith("user-preference-", StringComparison.OrdinalIgnoreCase))
+        if (reason.StartsWith("session-", StringComparison.OrdinalIgnoreCase) ||
+            reason.StartsWith("system-time-", StringComparison.OrdinalIgnoreCase) ||
+            reason.StartsWith("system-power-", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(reason, "network-proxy-changed", StringComparison.OrdinalIgnoreCase) ||
+            reason.StartsWith("user-preference-", StringComparison.OrdinalIgnoreCase))
         {
-            _log.Debug("Auto day/night accepted mainline system signal. Reason={Reason}", message.Reason);
+            _log.Debug("Auto day/night accepted system signal. Reason={Reason}", reason);
             _ = RefreshAsync();
         }
     }
 
     public void Dispose()
     {
-        _mainlineBus.MessagePublished -= OnMainlineMessagePublished;
+        _triggerBus.TriggerPublished -= OnTriggerPublished;
         _cts?.Cancel();
         _cts?.Dispose();
         _gate.Dispose();

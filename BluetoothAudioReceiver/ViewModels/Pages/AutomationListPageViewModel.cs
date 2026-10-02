@@ -4,7 +4,6 @@ using BluetoothAudioReceiver.Automation.Models;
 using BluetoothAudioReceiver.Contracts.Services;
 using BluetoothAudioReceiver.Views.Pages;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
 namespace BluetoothAudioReceiver.ViewModels.Pages;
@@ -13,7 +12,6 @@ public sealed partial class AutomationListPageViewModel : ObservableRecipient
 {
     private readonly IAutomationPipelineRepository _pipelineRepository;
     private readonly AutomationRuleEngine _automationRuleEngine;
-    private readonly IAutomationTraceStore _traceStore;
     private readonly IAppSettingsService _appSettingsService;
 
     [ObservableProperty]
@@ -29,16 +27,13 @@ public sealed partial class AutomationListPageViewModel : ObservableRecipient
     public AutomationListPageViewModel(
         IAutomationPipelineRepository pipelineRepository,
         AutomationRuleEngine automationRuleEngine,
-        IAutomationTraceStore traceStore,
         IAppSettingsService appSettingsService)
     {
         _pipelineRepository = pipelineRepository;
         _automationRuleEngine = automationRuleEngine;
-        _traceStore = traceStore;
         _appSettingsService = appSettingsService;
         AutomationExecutionNotificationEnabled = _appSettingsService.AutomationExecutionNotificationEnabled;
         _pipelineRepository.PipelinesChanged += OnPipelinesChanged;
-        _traceStore.TraceAppended += OnTraceAppended;
         Automations.CollectionChanged += (_, _) => UpdatePageState();
         Reload();
     }
@@ -154,8 +149,6 @@ public sealed partial class AutomationListPageViewModel : ObservableRecipient
             triggerText;
 
         var totalActionCount = pipeline.Steps.Count;
-        var lastRunSummary = BuildLastRunSummary(pipeline.Id);
-
         return new AutomationListItem(
             pipeline.Id,
             AutomationDisplayTextConverter.ToDisplayText(pipeline.Name),
@@ -163,83 +156,8 @@ public sealed partial class AutomationListPageViewModel : ObservableRecipient
             AutomationDisplayTextConverter.ToDisplayText(targetText),
             totalActionCount,
             pipeline.IsEnabled,
-            lastRunSummary,
+            "尚未执行记录",
             value => _ = SetAutomationEnabledAsync(pipeline.Id, value));
-    }
-
-    private void OnTraceAppended(object? sender, AutomationExecutionTrace trace)
-    {
-        var dispatcherQueue = App.MainWindow?.DispatcherQueue ?? DispatcherQueue.GetForCurrentThread();
-        if (dispatcherQueue is null)
-        {
-            return;
-        }
-
-        dispatcherQueue.TryEnqueue(() =>
-        {
-            try
-            {
-                var index = FindAutomationIndex(trace.PipelineId);
-                if (index < 0)
-                {
-                    return;
-                }
-
-                Automations[index].LastRunText = FormatTraceSummary(trace);
-            }
-            catch
-            {
-                // A stale page should not break the automation execution task.
-            }
-        });
-    }
-
-    private int FindAutomationIndex(Guid pipelineId)
-    {
-        for (var i = 0; i < Automations.Count; i++)
-        {
-            if (Automations[i].Id == pipelineId)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    private string BuildLastRunSummary(Guid pipelineId)
-    {
-        var trace = _traceStore
-            .GetRecent(500)
-            .Where(item => item.PipelineId == pipelineId)
-            .OrderByDescending(item => item.Timestamp)
-            .FirstOrDefault(IsSummaryTrace);
-
-        return trace is null ? "最近执行：暂无记录" : FormatTraceSummary(trace);
-    }
-
-    private static bool IsSummaryTrace(AutomationExecutionTrace trace)
-        => trace.ActionId is null;
-
-    private static string FormatTraceSummary(AutomationExecutionTrace trace)
-    {
-        var resultText = trace.Result switch
-        {
-            "completed" => "成功",
-            "partial" => "部分完成",
-            "failed" => "失败",
-            "aborted" => "已中止",
-            "rolled-back" => "已回滚",
-            "cooldown" => "冷却中",
-            "blocked-by-priority" => "被高优先级拦截",
-            "conditions-not-met" => "条件不满足",
-            "unsupported-trigger" => "触发器不支持",
-            "matched" => "已命中",
-            "started" => "执行中",
-            _ => trace.Result
-        };
-
-        return $"最近执行：{resultText} · {trace.Timestamp:HH:mm:ss}";
     }
 
 }

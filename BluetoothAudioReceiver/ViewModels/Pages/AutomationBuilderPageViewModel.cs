@@ -7,7 +7,6 @@ using BluetoothAudioReceiver.Core.Contracts.Services;
 using BluetoothAudioReceiver.Extensions;
 using BluetoothAudioReceiver.Models.Application;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
 namespace BluetoothAudioReceiver.ViewModels.Pages;
@@ -15,8 +14,6 @@ namespace BluetoothAudioReceiver.ViewModels.Pages;
 public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
 {
     private const string DefaultAutomationName = "自动化";
-    private const string SnapshotKeyPlaceholder = "__pipeline_snapshot__";
-    private const string CaptureStateActionTitle = "记录当前状态";
     private const string GHelperActionTitle = "GHelper 快捷键";
     private const string WindowsHotkeyActionTitle = "Win11 系统快捷键";
     private const string CustomHotkeyActionTitle = "自定义快捷键";
@@ -27,7 +24,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     private const string OutputDeviceExitText = "离开";
     private static readonly IReadOnlyList<string> EmptyParameterOptions = [NotConfiguredText];
     private static readonly IReadOnlyList<string> TouchpadToggleOptions = ["关闭", "开启"];
-    private static readonly IReadOnlyList<string> RestoreStateToggleOptions = ["开启", "关闭"];
     private static readonly IReadOnlyList<string> VolumeOptions =
         ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"];
     private static readonly IReadOnlyList<string> _inputDeviceActionOptions = ["连接", "断开"];
@@ -58,7 +54,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     private readonly IAppSettingsService _settingsService;
     private readonly IAudioRouteHotkeyService _audioRouteHotkeyService;
     private readonly IAudioPlaybackConnectionService _audioPlaybackConnectionService;
-    private readonly IAutomationTraceStore _traceStore;
     private Guid? _editingPipelineId;
 
     private static readonly IReadOnlyList<string> TriggerActionOptions =
@@ -84,7 +79,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         "电源模式",
         "深色模式",
         "等待",
-        CaptureStateActionTitle,
         GHelperActionTitle,
         WindowsHotkeyActionTitle,
         CustomHotkeyActionTitle,
@@ -118,7 +112,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             ["电源模式"] = AutomationSupportCatalog.ActionSetPowerMode,
             ["深色模式"] = AutomationSupportCatalog.ActionSetTheme,
             ["等待"] = AutomationSupportCatalog.ActionDelaySeconds,
-            [CaptureStateActionTitle] = AutomationSupportCatalog.ActionCaptureState,
             [GHelperActionTitle] = AutomationSupportCatalog.ActionSendGHelperHotkey,
             [WindowsHotkeyActionTitle] = AutomationSupportCatalog.ActionSendWindowsHotkey,
             [CustomHotkeyActionTitle] = AutomationSupportCatalog.ActionSendCustomHotkey,
@@ -146,16 +139,13 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         AutomationRuleEngine automationRuleEngine,
         IAppSettingsService settingsService,
         IAudioRouteHotkeyService audioRouteHotkeyService,
-        IAudioPlaybackConnectionService audioPlaybackConnectionService,
-        IAutomationTraceStore traceStore)
+        IAudioPlaybackConnectionService audioPlaybackConnectionService)
     {
         _pipelineRepository = pipelineRepository;
         _automationRuleEngine = automationRuleEngine;
         _settingsService = settingsService;
         _audioRouteHotkeyService = audioRouteHotkeyService;
         _audioPlaybackConnectionService = audioPlaybackConnectionService;
-        _traceStore = traceStore;
-        _traceStore.TraceAppended += OnTraceAppended;
         LoadOutputDevicesAsync().Forget(nameof(AutomationBuilderPageViewModel));
         LoadBluetoothTriggerDevicesAsync().Forget(nameof(AutomationBuilderPageViewModel));
     }
@@ -174,7 +164,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
 
     public IReadOnlyList<string> ActionOptions => EditorActionOptions;
     public IReadOnlyList<string> TriggerOptions => TriggerActionOptions;
-    public IReadOnlyList<string> RestoreToggleOptions => RestoreStateToggleOptions;
     public IReadOnlyList<string> InputDeviceActionOptions => _inputDeviceActionOptions;
     public IReadOnlyList<string> PerformanceWindowModeOptions => _performanceWindowModeOptions;
     public IReadOnlyList<string> PerformanceGpuComparisonOptions => _performanceGpuComparisonOptions;
@@ -218,9 +207,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     [ObservableProperty]
     public partial bool OnceOnlyEnabled { get; set; }
 
-    public int ExecutionCount => GetExecutionTraces().Count;
-    public int SuccessfulExecutionCount => GetExecutionTraces().Count(trace =>
-        string.Equals(trace.Result, "completed", StringComparison.OrdinalIgnoreCase));
 
     public string AllowRepeatedExecutionText
     {
@@ -268,11 +254,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     partial void OnOnceOnlyEnabledChanged(bool value)
         => OnPropertyChanged(nameof(OnceOnlyEnabledText));
 
-    private IReadOnlyList<AutomationExecutionTrace> GetExecutionTraces()
-        => _editingPipelineId is Guid pipelineId
-            ? _traceStore.GetRecent(500).Where(trace => trace.PipelineId == pipelineId && trace.ActionId is null).ToArray()
-            : [];
-
     private static double ResolveCooldownSeconds(string? displayText)
         => !string.IsNullOrWhiteSpace(displayText) &&
            CooldownOptionValues.TryGetValue(displayText, out var seconds)
@@ -319,8 +300,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         LastSaveErrorMessage = string.Empty;
         OnPropertyChanged(nameof(CanSavePipeline));
         Nodes.Clear();
-        OnPropertyChanged(nameof(ExecutionCount));
-        OnPropertyChanged(nameof(SuccessfulExecutionCount));
 
         if (pipelineId is null)
         {
@@ -1049,7 +1028,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     {
         return step.ActionType switch
         {
-            AutomationSupportCatalog.ActionCaptureState => CreateActionNode(CaptureStateActionTitle, string.Empty),
             AutomationSupportCatalog.ActionSetPowerMode => CreateActionNode("电源模式", ResolvePowerModeLabel(step.ParametersJson)),
             AutomationSupportCatalog.ActionDisableTouchpad => CreateActionNode("触摸板", "关闭"),
             AutomationSupportCatalog.ActionEnableTouchpad => CreateActionNode("触摸板", "开启"),
@@ -1352,37 +1330,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         pipeline.Options.RunTimeMode = ResolveRunTimeModeValue(RunTimeMode);
         pipeline.Options.OnceOnlyEnabled = OnceOnlyEnabled;
         pipeline.Options.FailurePolicy = FailurePolicy;
-        ReplaceSnapshotPlaceholders(pipeline, BuildSnapshotKey(pipelineId));
-
         return true;
-    }
-
-    private void OnTraceAppended(object? sender, AutomationExecutionTrace trace)
-    {
-        if (_editingPipelineId != trace.PipelineId)
-        {
-            return;
-        }
-
-        var dispatcherQueue = App.MainWindow?.DispatcherQueue;
-        if (dispatcherQueue is null)
-        {
-            return;
-        }
-
-        void RefreshExecutionSummary()
-        {
-            OnPropertyChanged(nameof(ExecutionCount));
-            OnPropertyChanged(nameof(SuccessfulExecutionCount));
-        }
-
-        if (dispatcherQueue.HasThreadAccess)
-        {
-            RefreshExecutionSummary();
-            return;
-        }
-
-        dispatcherQueue.TryEnqueue(RefreshExecutionSummary);
     }
 
     public static bool IsSupportedTriggerTitle(string title)
@@ -1589,7 +1537,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
                 })
             },
             "等待" => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionDelaySeconds, ParametersJson = AutomationActionParameterHelper.BuildDelaySeconds(int.Parse(ExtractDigits(node.Subtitle, "3"))) },
-            "记录当前状态" => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionCaptureState, ParametersJson = AutomationActionParameterHelper.BuildSnapshotKey(ResolveNodeValue(node)) },
             GHelperActionTitle => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSendGHelperHotkey, ParametersJson = AutomationActionParameterHelper.BuildValue(GHelperShortcutCatalog.NormalizeSelectionText(ResolveNodeValue(node))) },
             WindowsHotkeyActionTitle => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSendWindowsHotkey, ParametersJson = AutomationActionParameterHelper.BuildValue(WindowsShortcutCatalog.NormalizeSelectionText(ResolveNodeValue(node))) },
             CustomHotkeyActionTitle => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSendCustomHotkey, ParametersJson = AutomationActionParameterHelper.BuildValue(ResolveNodeValue(node)) },
@@ -1668,9 +1615,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             AutomationSupportCatalog.TriggerForegroundAppChanged or
             AutomationTriggerCatalog.PerformanceModeEntered;
 
-    private static string BuildSnapshotKey(Guid pipelineId)
-        => $"pipeline:{pipelineId:N}";
-
     private static string ResolveRunTimeModeValue(string? displayText)
         => displayText switch
         {
@@ -1678,18 +1622,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             "仅夜晚" => "night",
             _ => "any"
         };
-
-    private static void ReplaceSnapshotPlaceholders(AutomationPipeline pipeline, string snapshotKey)
-    {
-        foreach (var step in pipeline.Steps)
-        {
-            if (string.Equals(step.ActionType, AutomationSupportCatalog.ActionCaptureState, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(step.ParametersJson, SnapshotKeyPlaceholder, StringComparison.Ordinal))
-            {
-                step.ParametersJson = AutomationActionParameterHelper.BuildSnapshotKey(snapshotKey);
-            }
-        }
-    }
 
     private static string ResolvePowerModeLabel(string parameters)
     {
@@ -1851,11 +1783,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             node.RawValue = GetInputDeviceValue(subtitle);
             node.SecondaryValue = "连接";
         }
-        else if (title == CaptureStateActionTitle)
-        {
-            node.RawValue = string.Empty;
-        }
-
         return node;
     }
 
@@ -1970,7 +1897,6 @@ public sealed class AutomationNode : ObservableObject
                 Subtitle = parameterKind switch
                 {
                     AutomationParameterKind.None => string.Empty,
-                    AutomationParameterKind.Text when AutomationDisplayTextConverter.ToDisplayText(value) == "记录当前状态" => string.Empty,
                     _ => ParameterOptions.FirstOrDefault() ?? NotConfiguredText
                 };
                 RawValue = value switch

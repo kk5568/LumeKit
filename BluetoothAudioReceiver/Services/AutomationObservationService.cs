@@ -22,7 +22,6 @@ internal sealed class AutomationObservationService : IDisposable
     private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(AutomationObservationService));
 
     private readonly IAutomationSystemContextHub _systemContextHub;
-    private readonly IAutomationMainlineBus _mainlineBus;
     private readonly IAutomationTriggerBus _triggerBus;
     private readonly IAudioPlaybackConnectionService _audioPlaybackConnectionService;
     private readonly BluetoothRadioMonitorService _bluetoothRadioMonitorService;
@@ -65,7 +64,6 @@ internal sealed class AutomationObservationService : IDisposable
 
     public AutomationObservationService(
         IAutomationSystemContextHub systemContextHub,
-        IAutomationMainlineBus mainlineBus,
         IAutomationTriggerBus triggerBus,
         IAudioPlaybackConnectionService audioPlaybackConnectionService,
         BluetoothRadioMonitorService bluetoothRadioMonitorService,
@@ -79,7 +77,6 @@ internal sealed class AutomationObservationService : IDisposable
         AutomationObservationGetterSelector getterSelector)
     {
         _systemContextHub = systemContextHub;
-        _mainlineBus = mainlineBus;
         _triggerBus = triggerBus;
         _audioPlaybackConnectionService = audioPlaybackConnectionService;
         _bluetoothRadioMonitorService = bluetoothRadioMonitorService;
@@ -850,12 +847,13 @@ internal sealed class AutomationObservationService : IDisposable
             return;
         }
 
-        _mainlineBus.Publish(new AutomationMainlineMessage(
-            AutomationMainlineMessageKind.ThemeChanged,
-            current.CapturedAt,
-            Reason: "theme-changed",
-            Theme: current.IsDarkMode == true ? ElementTheme.Dark : ElementTheme.Light,
-            CorrelationId: correlationId));
+        PublishSystemSignal(
+            "theme-changed",
+            correlationId,
+            new Dictionary<string, string?>
+            {
+                ["theme"] = current.IsDarkMode == true ? "dark" : "light"
+            });
     }
 
     private void OnProcessStarted(object sender, EventArrivedEventArgs e)
@@ -989,11 +987,7 @@ internal sealed class AutomationObservationService : IDisposable
             "Automation observation publishing mainline system signal. Reason={Reason}, CorrelationId={CorrelationId}",
             reason,
             correlationId);
-        _mainlineBus.Publish(new AutomationMainlineMessage(
-            AutomationMainlineMessageKind.SystemSignal,
-            DateTimeOffset.Now,
-            Reason: reason,
-            CorrelationId: correlationId));
+        PublishSystemSignal(reason, correlationId);
     }
 
     private void PublishMainlineForegroundWindowChanged(IntPtr hwnd, Guid correlationId = default)
@@ -1004,13 +998,39 @@ internal sealed class AutomationObservationService : IDisposable
             processName,
             hwnd);
 
-        _mainlineBus.Publish(new AutomationMainlineMessage(
-            AutomationMainlineMessageKind.ForegroundWindowChanged,
+        PublishSystemSignal(
+            "foreground-window-changed",
+            correlationId,
+            new Dictionary<string, string?>
+            {
+                ["processName"] = processName,
+                ["windowHandle"] = hwnd.ToString()
+            });
+    }
+
+    private void PublishSystemSignal(
+        string reason,
+        Guid correlationId = default,
+        IReadOnlyDictionary<string, string?>? additionalPayload = null)
+    {
+        var payload = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["reason"] = reason
+        };
+
+        if (additionalPayload is not null)
+        {
+            foreach (var pair in additionalPayload)
+            {
+                payload[pair.Key] = pair.Value;
+            }
+        }
+
+        _triggerBus.Publish(new TriggerEvent(
+            AutomationSupportCatalog.TriggerSystemSignal,
             DateTimeOffset.Now,
-            Reason: "foreground-window-changed",
-            ProcessName: processName,
-            WindowHandle: hwnd,
-            CorrelationId: correlationId));
+            payload,
+            correlationId));
     }
 
     private void PublishBackgroundDispatchMessage(

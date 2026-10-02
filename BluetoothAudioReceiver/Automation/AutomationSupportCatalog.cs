@@ -9,8 +9,8 @@ public const string TriggerPerformanceModeExited = AutomationTriggerCatalog.Perf
 public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerChanged;
 
     public const string ConditionPowerState = "power-state";
+    public const string TriggerSystemSignal = "trigger.system.signal";
 
-    public const string ActionCaptureState = "capture-state";
     public const string ActionSendGHelperHotkey = "send-ghelper-hotkey";
     public const string ActionSendWindowsHotkey = "send-windows-hotkey";
     public const string ActionSendCustomHotkey = "send-custom-hotkey";
@@ -25,7 +25,6 @@ public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerCha
     public const string ActionShowNotification = "show-notification";
     public const string ActionSetOutputDevice = "set-output-device";
     public const string ActionProcessControl = "process-control";
-    public const string ActionRestoreState = "restore-state";
     public const string ActionDelaySeconds = "delay-seconds";
     public const string ActionStopExecution = "stop-execution";
 
@@ -52,7 +51,6 @@ public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerCha
     public static IReadOnlySet<string> SupportedActionTypes { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ActionCaptureState,
             ActionSendGHelperHotkey,
             ActionSendWindowsHotkey,
             ActionSendCustomHotkey,
@@ -67,7 +65,6 @@ public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerCha
             ActionShowNotification,
             ActionSetOutputDevice,
             ActionProcessControl,
-            ActionRestoreState,
             ActionDelaySeconds,
             ActionStopExecution
         };

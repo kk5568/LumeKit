@@ -51,12 +51,6 @@ public partial class App : Application
 
     #endregion
 
-    #region Splash Screen
-
-    public static TaskCompletionSource? SplashScreenLoadingTCS { get; private set; }
-
-    #endregion
-
     #region Constructor
 
     public App()
@@ -175,11 +169,9 @@ public partial class App : Application
                 services.AddSingleton<IAutomationObservationGetter>(sp => sp.GetRequiredService<PollingAutomationObservationGetter>());
                 services.AddSingleton<AutomationObservationGetterSelector>();
                 services.AddSingleton<IAutomationTriggerBus, AutomationTriggerBus>();
-                services.AddSingleton<IAutomationMainlineBus, AutomationMainlineBus>();
                 services.AddSingleton<IAutomationTriggerRegistry, AutomationTriggerRegistry>();
                 services.AddSingleton<IAutomationConditionRegistry, AutomationConditionRegistry>();
                 services.AddSingleton<IAutomationPipelineRepository, AutomationPipelineRepository>();
-                services.AddSingleton<AutomationSessionStateStore>();
                 services.AddSingleton<IAutomationActionProvider, AutomationNotificationActionProvider>();
                 services.AddSingleton<AutomationTouchpadActionProvider>();
                 services.AddSingleton<IAutomationActionProvider>(sp => sp.GetRequiredService<AutomationTouchpadActionProvider>());
@@ -194,10 +186,7 @@ public partial class App : Application
                 services.AddSingleton<IAutomationActionProvider, AutomationCustomShortcutActionProvider>();
                 services.AddSingleton<IAutomationActionProvider, AutomationInputDeviceActionProvider>();
                 services.AddSingleton<IAutomationActionProvider, AutomationOutputDeviceActionProvider>();
-                services.AddSingleton<IAutomationActionProvider, AutomationCaptureStateActionProvider>();
-                services.AddSingleton<IAutomationActionProvider, AutomationRestoreStateActionProvider>();
                 services.AddSingleton<IAutomationActionRegistry, AutomationActionRegistry>();
-                services.AddSingleton<IAutomationTraceStore, AutomationTraceStore>();
                 services.AddSingleton<AutomationTriggerMatcher>();
                 services.AddSingleton<AutomationRuleDecisionService>();
                 services.AddSingleton<AutomationPipelineExecutor>();
@@ -412,30 +401,7 @@ public partial class App : Application
             InitializeSystemThemeMonitoring();
             TryWriteStartupTrace("App.OnLaunched: system theme monitoring initialized");
 
-#if SPLASH_SCREEN
-            // Show the splash screen
-            SplashScreenLoadingTCS = new TaskCompletionSource();
-            await Ioc.Default.GetRequiredService<IActivationService>().LaunchMainWindowAsync(appActivationArguments);
-
-            // Activate the window
-            MainWindow.Activate();
-#endif
-
             _log.Information($"App launched. Launch args type: {args.GetType().Name}.");
-
-#if SPLASH_SCREEN
-            static async Task WithTimeoutAsync(Task task, TimeSpan timeout)
-            {
-                if (task == await Task.WhenAny(task, Task.Delay(timeout)))
-                {
-                    await task;
-                }
-            }
-
-            // Wait for the UI to update
-            await WithTimeoutAsync(SplashScreenLoadingTCS!.Task, TimeSpan.FromMilliseconds(500));
-            SplashScreenLoadingTCS = null;
-#endif
 
             // Check startup
             _ = StartupHelper.CheckStartup();
@@ -747,7 +713,6 @@ public partial class App : Application
 
         try
         {
-            await Ioc.Default.GetRequiredService<IAutomationTraceStore>().FlushAsync();
         }
         catch (Exception ex)
         {

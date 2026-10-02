@@ -187,6 +187,12 @@ internal sealed class AutomationPipelineRepository : IAutomationPipelineReposito
             pipeline.Name = AutomationDisplayTextConverter.ToDisplayText(pipeline.Name);
             pipeline.Category = AutomationDisplayTextConverter.ToDisplayText(pipeline.Category);
             pipeline.Options ??= new AutomationPipelineOptions();
+            AutomationRuleDecisionService.NormalizeFailurePolicy(pipeline);
+
+            pipeline.Steps = pipeline.Steps
+                .Where(step => !string.Equals(step.ActionType, "capture-state", StringComparison.OrdinalIgnoreCase) &&
+                               !string.Equals(step.ActionType, "restore-state", StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
             foreach (var step in pipeline.Steps)
             {
@@ -222,8 +228,6 @@ internal sealed class AutomationPipelineRepository : IAutomationPipelineReposito
             AutomationSupportCatalog.ActionDisableTouchpad => AutomationActionParameterHelper.BuildValue("disable"),
             AutomationSupportCatalog.ActionEnableTouchpad => AutomationActionParameterHelper.BuildValue("enable"),
             AutomationSupportCatalog.ActionDelaySeconds => AutomationActionParameterHelper.BuildDelaySeconds(AutomationActionParameterHelper.ReadDelaySeconds(parametersJson, 0)),
-            AutomationSupportCatalog.ActionCaptureState => AutomationActionParameterHelper.BuildSnapshotKey(AutomationActionParameterHelper.ReadValue(parametersJson, "default")),
-            AutomationSupportCatalog.ActionRestoreState => AutomationActionParameterHelper.BuildSnapshotKey(AutomationActionParameterHelper.ReadValue(parametersJson, "default")),
             AutomationSupportCatalog.ActionStopExecution => AutomationActionParameterHelper.BuildStopExecution(),
             _ => parametersJson
         };

@@ -867,7 +867,6 @@ public sealed partial class AutomationActionIconGlyphConverter : IValueConverter
             "GHelper 快捷键" or "Win11 系统快捷键" or "自定义快捷键" => "\uE765",
             "通知" => "\uE7F4",
             "等待" => "\uE916",
-            "记录当前状态" => "\uE7C3",
             _ => "\uE8F1"
         };
     }

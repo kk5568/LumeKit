@@ -135,6 +135,29 @@ internal sealed class AutomationRuleDecisionService
         return scope;
     }
 
+    public bool ValidateActions(AutomationPipeline pipeline, out string message)
+    {
+        foreach (var step in pipeline.Steps)
+        {
+            if (!_actionRegistry.IsSupported(step.ActionType))
+            {
+                message = $"动作类型不受支持：{step.ActionType}";
+                return false;
+            }
+        }
+
+        message = string.Empty;
+        return true;
+    }
+
+    public static void NormalizeFailurePolicy(AutomationPipeline pipeline)
+    {
+        if ((int)pipeline.Options.FailurePolicy > (int)AutomationFailurePolicy.Abort)
+        {
+            pipeline.Options.FailurePolicy = AutomationFailurePolicy.Abort;
+        }
+    }
+
     private static bool IsWithinRunTime(string? runTimeMode)
     {
         var hour = DateTime.Now.Hour;

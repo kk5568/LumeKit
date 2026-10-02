@@ -20,7 +20,6 @@ internal static class AutomationNotificationFormatter
     {
         return step.ActionType switch
         {
-            AutomationSupportCatalog.ActionCaptureState => "记录当前状态",
             AutomationSupportCatalog.ActionSendGHelperHotkey => $"G-Helper 热键 · {AutomationDisplayTextConverter.ToDisplayText(AutomationActionParameterHelper.ReadValue(step.ParametersJson))}",
             AutomationSupportCatalog.ActionSendWindowsHotkey => $"Windows 热键 · {AutomationDisplayTextConverter.ToDisplayText(AutomationActionParameterHelper.ReadValue(step.ParametersJson))}",
             AutomationSupportCatalog.ActionSendCustomHotkey => $"自定义热键 · {AutomationActionParameterHelper.ReadValue(step.ParametersJson)}",
@@ -35,7 +34,6 @@ internal static class AutomationNotificationFormatter
             AutomationSupportCatalog.ActionSetTheme => $"深色模式 · {ResolveThemeLabel(step.ParametersJson)}",
             AutomationSupportCatalog.ActionShowNotification => $"通知 · {AutomationDisplayTextConverter.ToDisplayText(AutomationActionParameterHelper.ReadValue(step.ParametersJson))}",
             AutomationSupportCatalog.ActionProcessControl => ResolveProcessControlText(step.ParametersJson),
-            AutomationSupportCatalog.ActionRestoreState => "恢复状态",
             AutomationSupportCatalog.ActionDelaySeconds => $"等待 · {AutomationActionParameterHelper.ReadDelaySeconds(step.ParametersJson, 0)} 秒",
             AutomationSupportCatalog.ActionStopExecution => "停止执行",
             _ => string.Empty

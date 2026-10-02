@@ -141,15 +141,6 @@ public sealed partial class MainWindow : WindowEx
         await App.ExitAsync();
     }
 
-#if SPLASH_SCREEN
-    public void ShowSplashScreen()
-    {
-        var rootFrame = EnsureWindowIsInitialized(true);
-
-        rootFrame?.Navigate(typeof(SplashScreenPage));
-    }
-#endif
-
     public async Task InitializeApplicationAsync(object activatedEventArgs, bool showWindow = true)
     {
         var rootFrame = EnsureWindowIsInitialized(false);

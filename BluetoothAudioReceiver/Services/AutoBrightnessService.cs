@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using BluetoothAudioReceiver.Automation;
+using BluetoothAudioReceiver.Automation.Models;
 using BluetoothAudioReceiver.Contracts.Services;
 using BluetoothAudioReceiver.Models;
 using Serilog;
@@ -25,7 +27,7 @@ namespace BluetoothAudioReceiver.Services
         private readonly BrightnessSettings _settings;
         private readonly INotificationService _notificationService;
         private readonly IAppSettingsService _appSettingsService;
-        private readonly IAutomationMainlineBus _mainlineBus;
+        private readonly IAutomationTriggerBus _triggerBus;
         private readonly object _requestGate = new();
         private IntPtr _windowHandle;
         private bool _disposed;
@@ -46,7 +48,7 @@ namespace BluetoothAudioReceiver.Services
             BrightnessSettings settings,
             INotificationService notificationService,
             IAppSettingsService appSettingsService,
-            IAutomationMainlineBus mainlineBus)
+            IAutomationTriggerBus triggerBus)
         {
             _cameraReader = cameraReader;
             _controller = controller;
@@ -55,9 +57,9 @@ namespace BluetoothAudioReceiver.Services
             _settings = settings;
             _notificationService = notificationService;
             _appSettingsService = appSettingsService;
-            _mainlineBus = mainlineBus;
-            _mainlineBus.MessagePublished += OnMainlineMessagePublished;
-            _log.Information("Auto brightness subscribed to automation mainline");
+            _triggerBus = triggerBus;
+            _triggerBus.TriggerPublished += OnTriggerPublished;
+            _log.Information("Auto brightness subscribed to automation trigger bus");
         }
 
         public Task StartAsync()
@@ -554,35 +556,29 @@ namespace BluetoothAudioReceiver.Services
             return (midpoint, midpoint);
         }
 
-        private void OnMainlineMessagePublished(object? sender, AutomationMainlineMessage message)
+        private void OnTriggerPublished(object? sender, TriggerEvent triggerEvent)
         {
             if (_disposed)
             {
-                _log.Debug("Auto brightness ignored mainline message because service is disposed");
+                _log.Debug("Auto brightness ignored trigger because service is disposed");
                 return;
             }
 
-            _log.Debug(
-                "Auto brightness received mainline message. Kind={Kind}, Reason={Reason}, CorrelationId={CorrelationId}",
-                message.Kind,
-                message.Reason,
-                message.CorrelationId);
-
-            if (message.Kind != AutomationMainlineMessageKind.SystemSignal)
+            if (!string.Equals(triggerEvent.TriggerType, AutomationSupportCatalog.TriggerSystemSignal, StringComparison.OrdinalIgnoreCase))
             {
-                _log.Debug("Auto brightness ignored mainline message because kind is not SystemSignal");
                 return;
             }
 
-            if (!string.Equals(message.Reason, "session-SessionUnlock", StringComparison.OrdinalIgnoreCase))
+            if (!triggerEvent.Payload.TryGetValue("reason", out var reason) ||
+                !string.Equals(reason, "session-SessionUnlock", StringComparison.OrdinalIgnoreCase))
             {
-                _log.Debug("Auto brightness ignored mainline system signal because reason does not match unlock. Reason={Reason}", message.Reason);
+                _log.Debug("Auto brightness ignored system signal because reason does not match unlock. Reason={Reason}", reason);
                 return;
             }
 
             _log.Information(
-                "Auto brightness accepted mainline session unlock. CorrelationId={CorrelationId}",
-                message.CorrelationId);
+                "Auto brightness accepted session unlock. CorrelationId={CorrelationId}",
+                triggerEvent.CorrelationId);
             OnScreenUnlocked();
         }
 
@@ -594,8 +590,8 @@ namespace BluetoothAudioReceiver.Services
             }
 
             _disposed = true;
-            _mainlineBus.MessagePublished -= OnMainlineMessagePublished;
-            _log.Information("Auto brightness unsubscribed from automation mainline");
+            _triggerBus.TriggerPublished -= OnTriggerPublished;
+            _log.Information("Auto brightness unsubscribed from automation trigger bus");
         }
 
     }

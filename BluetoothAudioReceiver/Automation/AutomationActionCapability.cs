@@ -11,7 +11,6 @@ public enum AutomationActionResourceScope
     Process = 1 << 4,
     Input = 1 << 5,
     Notification = 1 << 6,
-    SessionState = 1 << 7
 }
 
 public enum AutomationActionProviderKind
@@ -20,7 +19,6 @@ public enum AutomationActionProviderKind
     Device,
     Input,
     Process,
-    State,
     Notification
 }
 

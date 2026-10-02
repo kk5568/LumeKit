@@ -11,7 +11,6 @@ internal sealed class AutomationPipelineCoordinator
     private readonly IAutomationTriggerRegistry _triggerRegistry;
     private readonly IAutomationSystemContextHub _systemContextHub;
     private readonly IAutomationPipelineRepository _pipelineRepository;
-    private readonly IAutomationTraceStore _traceStore;
     private readonly IAppSettingsService _settingsService;
     private readonly AutomationTriggerMatcher _triggerMatcher;
     private readonly AutomationRuleDecisionService _decisionService;
@@ -23,7 +22,6 @@ internal sealed class AutomationPipelineCoordinator
         IAutomationTriggerRegistry triggerRegistry,
         IAutomationSystemContextHub systemContextHub,
         IAutomationPipelineRepository pipelineRepository,
-        IAutomationTraceStore traceStore,
         IAppSettingsService settingsService,
         AutomationTriggerMatcher triggerMatcher,
         AutomationRuleDecisionService decisionService,
@@ -32,7 +30,6 @@ internal sealed class AutomationPipelineCoordinator
         _triggerRegistry = triggerRegistry;
         _systemContextHub = systemContextHub;
         _pipelineRepository = pipelineRepository;
-        _traceStore = traceStore;
         _settingsService = settingsService;
         _triggerMatcher = triggerMatcher;
         _decisionService = decisionService;
@@ -56,7 +53,13 @@ internal sealed class AutomationPipelineCoordinator
         var triggerEvent = new TriggerEvent(triggerType, DateTimeOffset.Now, payload, Guid.NewGuid());
         if (ShouldSkip(pipeline, triggerEvent, out var optionResult, out var optionMessage))
         {
-            AppendPipelineDecisionTrace(pipeline, triggerEvent, optionResult, optionMessage);
+            _log.Information("Automation direct test skipped. Result={Result}, Message={Message}", optionResult, optionMessage);
+            return;
+        }
+
+        if (!_decisionService.ValidateActions(pipeline, out var validationMessage))
+        {
+            _log.Warning("Automation direct test rejected. {Message}", validationMessage);
             return;
         }
 
@@ -66,7 +69,6 @@ internal sealed class AutomationPipelineCoordinator
             pipeline.Name,
             pipeline.Steps.Count,
             triggerEvent.CorrelationId);
-        AppendTrace(context, triggerEvent, "matched", "测试按钮已命中，准备执行");
         _lastRunAt[pipeline.Id] = triggerEvent.OccurredAt;
         await _pipelineExecutor.ExecuteAsync(pipeline, triggerEvent, context);
     }
@@ -84,25 +86,30 @@ internal sealed class AutomationPipelineCoordinator
         {
             if (!_decisionService.EvaluateConditions(pipeline.Conditions, triggerEvent, _systemContextHub.Current))
             {
-                AppendPipelineDecisionTrace(pipeline, triggerEvent, "conditions-not-met", "开机运行时条件不满足");
+                _log.Information("Startup automation skipped because conditions were not met. Pipeline={PipelineName}", pipeline.Name);
                 continue;
             }
 
             if (ShouldSkip(pipeline, triggerEvent, out var optionResult, out var optionMessage))
             {
-                AppendPipelineDecisionTrace(pipeline, triggerEvent, optionResult, optionMessage);
+                _log.Information("Startup automation skipped. Pipeline={PipelineName}, Result={Result}, Message={Message}", pipeline.Name, optionResult, optionMessage);
+                continue;
+            }
+
+            if (!_decisionService.ValidateActions(pipeline, out var validationMessage))
+            {
+                _log.Warning("Startup automation rejected. Pipeline={PipelineName}, Message={Message}", pipeline.Name, validationMessage);
                 continue;
             }
 
             var scope = _decisionService.GetResourceScope(pipeline);
             if (IsBlocked(scope, blockedScopes))
             {
-                AppendPipelineDecisionTrace(pipeline, triggerEvent, "blocked-by-priority", $"被前面规则拦截：{blockedScopes}");
+                _log.Information("Startup automation blocked by priority. Pipeline={PipelineName}, BlockedScopes={BlockedScopes}", pipeline.Name, blockedScopes);
                 continue;
             }
 
             var context = CreateExecutionContext(pipeline, triggerEvent);
-            AppendTrace(context, triggerEvent, "matched", "开机运行已命中，准备执行");
             _lastRunAt[pipeline.Id] = triggerEvent.OccurredAt;
             var result = await _pipelineExecutor.ExecuteAsync(pipeline, triggerEvent, context);
             blockedScopes |= result.BlockedResourceScope;
@@ -141,25 +148,30 @@ internal sealed class AutomationPipelineCoordinator
 
             if (!_decisionService.EvaluateConditions(pipeline.Conditions, normalizedEvent, _systemContextHub.Current))
             {
-                AppendPipelineDecisionTrace(pipeline, normalizedEvent, "conditions-not-met", "条件不满足，跳过执行");
+                _log.Information("Automation skipped because conditions were not met. Pipeline={PipelineName}", pipeline.Name);
                 continue;
             }
 
             if (ShouldSkip(pipeline, normalizedEvent, out var optionResult, out var optionMessage))
             {
-                AppendPipelineDecisionTrace(pipeline, normalizedEvent, optionResult, optionMessage);
+                _log.Information("Automation skipped. Pipeline={PipelineName}, Result={Result}, Message={Message}", pipeline.Name, optionResult, optionMessage);
+                continue;
+            }
+
+            if (!_decisionService.ValidateActions(pipeline, out var validationMessage))
+            {
+                _log.Warning("Automation rejected. Pipeline={PipelineName}, Message={Message}", pipeline.Name, validationMessage);
                 continue;
             }
 
             var scope = _decisionService.GetResourceScope(pipeline);
             if (IsBlocked(scope, blockedScopes))
             {
-                AppendPipelineDecisionTrace(pipeline, normalizedEvent, "blocked-by-priority", $"被更高优先级规则拦截：{blockedScopes}");
+                _log.Information("Automation blocked by priority. Pipeline={PipelineName}, BlockedScopes={BlockedScopes}", pipeline.Name, blockedScopes);
                 continue;
             }
 
             var context = CreateExecutionContext(pipeline, normalizedEvent);
-            AppendTrace(context, normalizedEvent, "matched", "触发已命中，准备执行");
             _lastRunAt[pipeline.Id] = normalizedEvent.OccurredAt;
             var result = await _pipelineExecutor.ExecuteAsync(pipeline, normalizedEvent, context);
             blockedScopes |= result.BlockedResourceScope;
@@ -197,25 +209,6 @@ internal sealed class AutomationPipelineCoordinator
             triggerEvent.TriggerType,
             triggerEvent.OccurredAt,
             triggerEvent.CorrelationId);
-
-    private void AppendPipelineDecisionTrace(
-        AutomationPipeline pipeline,
-        TriggerEvent triggerEvent,
-        string result,
-        string message)
-        => AppendTrace(CreateExecutionContext(pipeline, triggerEvent), triggerEvent, result, message);
-
-    private void AppendTrace(
-        AutomationExecutionContext executionContext,
-        TriggerEvent triggerEvent,
-        string result,
-        string message)
-        => _traceStore.Append(AutomationTraceLogger.CreateTrace(
-            executionContext,
-            result,
-            DateTimeOffset.Now,
-            message: message,
-            triggerPayload: triggerEvent.Payload));
 
     private static bool IsBlocked(AutomationActionResourceScope scope, AutomationActionResourceScope blockedScopes)
         => scope != AutomationActionResourceScope.None &&

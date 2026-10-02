@@ -10,23 +10,6 @@ internal class ActivationService(ActivationHandler<LaunchActivatedEventArgs> def
     private readonly IBackdropSelectorService _backdropSelectorService = backdropSelectorService;
     private readonly IThemeSelectorService _themeSelectorService = themeSelectorService;
 
-#if SPLASH_SCREEN
-    public async Task LaunchMainWindowAsync(object activationArgs)
-    {
-        // Execute tasks before activation.
-        await InitializeAsync();
-
-        // Show splash screen in the MainWindow
-        App.MainWindow.ShowSplashScreen();
-
-        // Handle activation via ActivationHandlers.
-        await HandleActivationAsync(activationArgs);
-
-        // Execute tasks after activation.
-        await StartupAsync(App.MainWindow);
-    }
-#endif
-
     public async Task ActivateMainWindowAsync(object activationArgs, bool showWindow = true)
     {
         // Execute tasks before activation.
