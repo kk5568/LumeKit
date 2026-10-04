@@ -155,7 +155,8 @@ try {
     }
 
     Write-Stage '清理旧输出'
-    Get-ChildItem $outputRoot -File -Filter '*.msi' -ErrorAction SilentlyContinue | Remove-Item -Force
+    # 旧安装包不做批量删除：历史上生成的每个 MSI 都留在 output 里，方便随时回退和对比。
+    # 本次要产出的那个（$msiPath）即使已存在也不单独删，交给 WiX 的 -o 直接覆盖。
     if (Test-Path $publishDir) {
         Remove-Item $publishDir -Recurse -Force
     }
