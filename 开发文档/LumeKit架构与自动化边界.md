@@ -2,6 +2,10 @@
 
 更新时间：2026-09-24
 
+> **本文已过期，仅作历史参考。** 文中提到的 `AutomationMainlineBus`、`AutomationTraceStore`、
+> `AutomationTraceLogger`、`AutomationSessionStateStore`、`WallpaperDimService`，以及状态保存/恢复动作，
+> 都已在 17.0 优化和后续清理中删除。当前口径以 `开发文档\开发计划.md` 为准。
+
 ## 1. 总体结构
 
 LumeKit 采用“一个调度器、一个自动化中心、多个功能模块”的结构。

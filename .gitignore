@@ -71,7 +71,7 @@ BluetoothAudioReceiver/BundleArtifacts/
 *.db-wal
 
 # External reference sources, vendor drops, and backups
-参考项目/
+引用项目/
 
 # Codex and local SDK caches
 .codex/
