@@ -55,10 +55,6 @@ public class LocalSettingsKeys
     public readonly string AutoDayNightUseCustomNightScheduleKey = "AutoDayNightUseCustomNightSchedule";
     public readonly string AutoDayNightNightStartTimeKey = "AutoDayNightNightStartTime";
     public readonly string AutoDayNightNightEndTimeKey = "AutoDayNightNightEndTime";
-    public readonly string WallpaperDimEnabledKey = "WallpaperDimEnabled";
-    public readonly string WallpaperDimFollowThemeKey = "WallpaperDimFollowTheme";
-    public readonly string WallpaperDimOpacityKey = "WallpaperDimOpacity";
-    public readonly string WallpaperDimRestoreOnExitKey = "WallpaperDimRestoreOnExit";
 
     public readonly string BackgroundEfficiencyProcessWhitelistKey = "BackgroundEfficiencyProcessWhitelist";
     public readonly string BackgroundEfficiencyProcessBlacklistKey = "BackgroundEfficiencyProcessBlacklist";

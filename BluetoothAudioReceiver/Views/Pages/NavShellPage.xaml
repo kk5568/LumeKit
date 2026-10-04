@@ -1,4 +1,4 @@
-﻿<Page
+<Page
     x:Class="BluetoothAudioReceiver.Views.Pages.NavShellPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -71,7 +71,7 @@
                         <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE8A5;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="深色模式与壁纸" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.ThemeManagementPageViewModel">
+                <NavigationViewItem Content="深色模式" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.ThemeManagementPageViewModel">
                     <NavigationViewItem.Icon>
                         <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE790;"/>
                     </NavigationViewItem.Icon>

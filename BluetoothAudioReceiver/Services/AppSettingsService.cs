@@ -66,10 +66,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
             AutoDayNightUseCustomNightSchedule = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightUseCustomNightScheduleKey, DefaultAutoDayNightUseCustomNightSchedule);
             AutoDayNightNightStartTime = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightNightStartTimeKey, DefaultAutoDayNightNightStartTime);
             AutoDayNightNightEndTime = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightNightEndTimeKey, DefaultAutoDayNightNightEndTime);
-            WallpaperDimEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.WallpaperDimEnabledKey, DefaultWallpaperDimEnabled);
-            WallpaperDimFollowTheme = GetDataFromSettings(snapshot, _localSettingsKeys.WallpaperDimFollowThemeKey, DefaultWallpaperDimFollowTheme);
-            WallpaperDimOpacity = GetDataFromSettings(snapshot, _localSettingsKeys.WallpaperDimOpacityKey, DefaultWallpaperDimOpacity);
-            WallpaperDimRestoreOnExit = GetDataFromSettings(snapshot, _localSettingsKeys.WallpaperDimRestoreOnExitKey, DefaultWallpaperDimRestoreOnExit);
             BackgroundEfficiencyProcessWhitelist = GetDataFromSettings(snapshot, _localSettingsKeys.BackgroundEfficiencyProcessWhitelistKey, DefaultBackgroundEfficiencyProcessWhitelist);
             BackgroundEfficiencyProcessBlacklist = GetDataFromSettings(snapshot, _localSettingsKeys.BackgroundEfficiencyProcessBlacklistKey, DefaultBackgroundEfficiencyProcessBlacklist);
             AutomationGameList = GetDataFromSettings(snapshot, _localSettingsKeys.AutomationGameListKey, DefaultAutomationGameList);
@@ -1048,107 +1044,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
         var normalized = FormatNightTimeString(time);
         await SaveDataInSettingsAsync(_localSettingsKeys.AutoDayNightNightEndTimeKey, normalized);
         AutoDayNightNightEndTime = normalized;
-    }
-
-    #endregion
-
-    #region WallpaperDimEnabled
-
-    private bool wallpaperDimEnabled = DefaultWallpaperDimEnabled;
-    public bool WallpaperDimEnabled
-    {
-        get => wallpaperDimEnabled;
-        private set
-        {
-            if (wallpaperDimEnabled != value)
-            {
-                wallpaperDimEnabled = value;
-            }
-        }
-    }
-
-    private const bool DefaultWallpaperDimEnabled = false;
-
-    public async Task SetWallpaperDimEnabledAsync(bool enabled)
-    {
-        await SaveDataInSettingsAsync(_localSettingsKeys.WallpaperDimEnabledKey, enabled);
-        WallpaperDimEnabled = enabled;
-    }
-
-    #endregion
-
-    #region WallpaperDimFollowTheme
-
-    private bool wallpaperDimFollowTheme = DefaultWallpaperDimFollowTheme;
-    public bool WallpaperDimFollowTheme
-    {
-        get => wallpaperDimFollowTheme;
-        private set
-        {
-            if (wallpaperDimFollowTheme != value)
-            {
-                wallpaperDimFollowTheme = value;
-            }
-        }
-    }
-
-    private const bool DefaultWallpaperDimFollowTheme = true;
-
-    public async Task SetWallpaperDimFollowThemeAsync(bool enabled)
-    {
-        await SaveDataInSettingsAsync(_localSettingsKeys.WallpaperDimFollowThemeKey, enabled);
-        WallpaperDimFollowTheme = enabled;
-    }
-
-    #endregion
-
-    #region WallpaperDimOpacity
-
-    private double wallpaperDimOpacity = DefaultWallpaperDimOpacity;
-    public double WallpaperDimOpacity
-    {
-        get => wallpaperDimOpacity;
-        private set
-        {
-            if (Math.Abs(wallpaperDimOpacity - value) > double.Epsilon)
-            {
-                wallpaperDimOpacity = value;
-            }
-        }
-    }
-
-    private const double DefaultWallpaperDimOpacity = 0.35;
-
-    public async Task SetWallpaperDimOpacityAsync(double opacity)
-    {
-        var normalized = Math.Clamp(opacity, 0.0, 0.85);
-        await SaveDataInSettingsAsync(_localSettingsKeys.WallpaperDimOpacityKey, normalized);
-        WallpaperDimOpacity = normalized;
-    }
-
-    #endregion
-
-    #region WallpaperDimRestoreOnExit
-
-    private bool wallpaperDimRestoreOnExit = DefaultWallpaperDimRestoreOnExit;
-    public bool WallpaperDimRestoreOnExit
-    {
-        get => wallpaperDimRestoreOnExit;
-        private set
-        {
-            if (wallpaperDimRestoreOnExit != value)
-            {
-                wallpaperDimRestoreOnExit = value;
-            }
-        }
-    }
-
-    private const bool DefaultWallpaperDimRestoreOnExit = true;
-
-    public async Task SetWallpaperDimRestoreOnExitAsync(bool enabled)
-    {
-        await SaveDataInSettingsAsync(_localSettingsKeys.WallpaperDimRestoreOnExitKey, enabled);
-        WallpaperDimRestoreOnExit = enabled;
     }
 
     #endregion

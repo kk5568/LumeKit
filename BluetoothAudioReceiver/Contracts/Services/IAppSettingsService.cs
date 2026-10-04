@@ -151,22 +151,6 @@ public interface IAppSettingsService
 
     Task SetAutoDayNightNightEndTimeAsync(TimeSpan? time);
 
-    bool WallpaperDimEnabled { get; }
-
-    Task SetWallpaperDimEnabledAsync(bool enabled);
-
-    bool WallpaperDimFollowTheme { get; }
-
-    Task SetWallpaperDimFollowThemeAsync(bool enabled);
-
-    double WallpaperDimOpacity { get; }
-
-    Task SetWallpaperDimOpacityAsync(double opacity);
-
-    bool WallpaperDimRestoreOnExit { get; }
-
-    Task SetWallpaperDimRestoreOnExitAsync(bool enabled);
-
     string BackgroundEfficiencyProcessWhitelist { get; }
 
     Task SetBackgroundEfficiencyProcessWhitelistAsync(string value);

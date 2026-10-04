@@ -116,7 +116,6 @@ public partial class App : Application
 
                 // Theme Management
                 services.AddSingleton<ThemeManager>();
-                services.AddSingleton<WallpaperDimService>();
                 services.AddSingleton<SolarCalculator>();
                 services.AddSingleton<TaskSchedulerManager>();
                 services.AddSingleton<IThemeSelectorService, ThemeSelectorService>();
@@ -490,17 +489,6 @@ public partial class App : Application
 
             try
             {
-                var wallpaperVm = Ioc.Default.GetRequiredService<ThemeManagementPageViewModel>();
-                await wallpaperVm.SyncWallpaperProcessingToThemeAsync(Ioc.Default.GetRequiredService<IThemeSelectorService>().GetActualTheme());
-                TryWriteStartupTrace("Deferred startup: wallpaper sync after theme check done");
-            }
-            catch (Exception ex)
-            {
-                _log.Warning(ex, "Failed to synchronize wallpaper dim state on startup");
-            }
-
-            try
-            {
                 Ioc.Default.GetRequiredService<AutoBrightnessService>().UpdateNightLightState();
                 TryWriteStartupTrace("Deferred startup: Night Light state initialized");
             }
@@ -638,8 +626,7 @@ public partial class App : Application
         }
 
         IsExiting = true;
-        var wallpaperRestoreOnExit = Ioc.Default.GetRequiredService<IAppSettingsService>().WallpaperDimRestoreOnExit;
-        _log.Information("ExitAsync started. WallpaperDimRestoreOnExit={WallpaperRestoreOnExit}", wallpaperRestoreOnExit);
+        _log.Information("ExitAsync started.");
 
         // Unregister app notification service
         Ioc.Default.GetRequiredService<IAppNotificationService>().Unregister();
@@ -668,20 +655,6 @@ public partial class App : Application
         try
         {
             await Ioc.Default.GetRequiredService<AutoBrightnessService>().StopAsync();
-        }
-        catch
-        {
-            // ignore
-        }
-
-        try
-        {
-            if (wallpaperRestoreOnExit)
-            {
-                _log.Information("ExitAsync restoring wallpaper before shutdown.");
-                await Ioc.Default.GetRequiredService<WallpaperDimService>().RestoreAsync();
-                _log.Information("ExitAsync wallpaper restore completed.");
-            }
         }
         catch
         {

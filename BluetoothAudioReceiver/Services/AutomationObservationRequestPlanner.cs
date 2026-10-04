@@ -123,15 +123,13 @@ internal sealed class AutomationObservationRequestPlanner
         if (_appSettingsService.AutoBrightnessNotificationEnabled ||
             _appSettingsService.AutoBrightnessOnUnlockEnabled ||
             _appSettingsService.AutoBrightnessOnUnlockNotificationEnabled ||
-            _appSettingsService.AutoBrightnessOnForegroundEnabled ||
-            _appSettingsService.WallpaperDimEnabled)
+            _appSettingsService.AutoBrightnessOnForegroundEnabled)
         {
             items.Add(ObservationInfoKind.Brightness);
         }
 
         if (_appSettingsService.AutoDayNightEnabled ||
             _appSettingsService.AutoDayNightNotificationEnabled ||
-            _appSettingsService.WallpaperDimEnabled ||
             _appSettingsService.DisableNightLightEnabled ||
             _appSettingsService.DisableNightLightAtNightEnabled)
         {
