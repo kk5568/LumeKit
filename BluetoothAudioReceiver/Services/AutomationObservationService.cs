@@ -24,7 +24,7 @@ internal sealed class AutomationObservationService : IDisposable
     private readonly AutoDayNightService _autoDayNightService;
     private readonly AutoBrightnessService _autoBrightnessService;
     private readonly IAppSettingsService _appSettingsService;
-    private readonly IAutomationPipelineRepository _pipelineRepository;
+    private readonly AutomationGameModeDecisionService _gameModeDecisionService;
     private readonly AutomationObservationGetterSelector _getterSelector;
     private readonly IAutomationObservationCollector _observationCollector;
     private readonly AutomationObservationStateProcessor _observationProcessor;
@@ -59,7 +59,7 @@ internal sealed class AutomationObservationService : IDisposable
         AutoDayNightService autoDayNightService,
         AutoBrightnessService autoBrightnessService,
         IAppSettingsService appSettingsService,
-        IAutomationPipelineRepository pipelineRepository,
+        AutomationGameModeDecisionService gameModeDecisionService,
         AutomationObservationGetterSelector getterSelector)
     {
         _systemContextHub = systemContextHub;
@@ -70,7 +70,7 @@ internal sealed class AutomationObservationService : IDisposable
         _autoDayNightService = autoDayNightService;
         _autoBrightnessService = autoBrightnessService;
         _appSettingsService = appSettingsService;
-        _pipelineRepository = pipelineRepository;
+        _gameModeDecisionService = gameModeDecisionService;
         _getterSelector = getterSelector;
         _observationPublisher = new AutomationObservationPublisher(
             _triggerBus,
@@ -81,8 +81,6 @@ internal sealed class AutomationObservationService : IDisposable
             () => _cts?.Token ?? CancellationToken.None);
         _observationProcessor = new AutomationObservationStateProcessor(
             _systemContextHub,
-            _triggerBus,
-            _pipelineRepository,
             ForegroundWindowProbe.GetForegroundProcessName,
             ForegroundWindowProbe.GetForegroundProcessId,
             ForegroundWindowProbe.IsForegroundFullscreen);
@@ -160,8 +158,8 @@ internal sealed class AutomationObservationService : IDisposable
                     continue;
                 }
 
-                _observationProcessor.EvaluatePerformanceMode();
-                var pollInterval = _observationProcessor.IsAnyModeActive()
+                _gameModeDecisionService.Evaluate(_observationProcessor.CapturePerformanceSample);
+                var pollInterval = _gameModeDecisionService.IsAnyModeActive()
                     ? PerformanceModeActivePollInterval
                     : PerformanceModeCandidatePollInterval;
                 await Task.Delay(pollInterval, token);
@@ -530,7 +528,7 @@ internal sealed class AutomationObservationService : IDisposable
             occurredAt);
 
         _ = RequestObservationRefreshAsync("process-stopped", correlationId);
-        _observationProcessor.HandleProcessStopped(processName, occurredAt, processId);
+        _gameModeDecisionService.HandleProcessStopped(processName, occurredAt, processId);
     }
 
     public void Dispose()
@@ -560,7 +558,7 @@ internal sealed class AutomationObservationService : IDisposable
     {
         if (_started)
         {
-            _observationProcessor.EvaluatePerformanceMode();
+            _gameModeDecisionService.Evaluate(_observationProcessor.CapturePerformanceSample);
         }
     }
 

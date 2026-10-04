@@ -49,6 +49,16 @@ internal interface IAutomationObservationProcessor
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// 观察层采样到的一次性能事实。只描述现状，不含任何用户规则判断。
+/// </summary>
+internal readonly record struct PerformanceSample(
+    string? ProcessName,
+    int? ProcessId,
+    bool IsFullscreen,
+    float? GpuUsagePercent,
+    DateTimeOffset CapturedAt);
+
 internal interface IAutomationObservationDispatcher
 {
     void Dispatch(

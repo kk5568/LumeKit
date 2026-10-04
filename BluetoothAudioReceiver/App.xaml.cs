@@ -173,6 +173,7 @@ public partial class App : Application
                 services.AddSingleton<IAutomationTriggerRegistry, AutomationTriggerRegistry>();
                 services.AddSingleton<IAutomationConditionRegistry, AutomationConditionRegistry>();
                 services.AddSingleton<IAutomationPipelineRepository, AutomationPipelineRepository>();
+                services.AddSingleton<AutomationGameModeDecisionService>();
                 services.AddSingleton<IAutomationActionProvider, AutomationNotificationActionProvider>();
                 services.AddSingleton<AutomationTouchpadActionProvider>();
                 services.AddSingleton<IAutomationActionProvider>(sp => sp.GetRequiredService<AutomationTouchpadActionProvider>());
