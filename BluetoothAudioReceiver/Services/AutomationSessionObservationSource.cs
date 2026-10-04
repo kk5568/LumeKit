@@ -99,7 +99,7 @@ internal sealed class AutomationSessionObservationSource : IDisposable
             "Processed native SessionUnlock notification. IsLockedAfter={IsLockedAfter}, CorrelationId={CorrelationId}",
             _isLocked(),
             correlationId);
-        _publisher.PublishMainlineSystemSignal(reason, correlationId);
+        _publisher.PublishSystemSignal(reason, correlationId);
         _publisher.PublishBackgroundDispatchMessage(
             BackgroundDispatchMessageType.SystemSignal,
             reason,

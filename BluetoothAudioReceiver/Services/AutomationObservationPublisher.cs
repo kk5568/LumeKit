@@ -144,20 +144,11 @@ internal sealed class AutomationObservationPublisher : IDisposable
             });
     }
 
-    public void PublishMainlineSystemSignal(string reason, Guid correlationId = default)
-    {
-        _log.Debug(
-            "Automation observation publishing mainline system signal. Reason={Reason}, CorrelationId={CorrelationId}",
-            reason,
-            correlationId);
-        PublishSystemSignal(reason, correlationId);
-    }
-
-    public void PublishMainlineForegroundWindowChanged(IntPtr hwnd, Guid correlationId = default)
+    public void PublishForegroundWindowChanged(IntPtr hwnd, Guid correlationId = default)
     {
         var processName = ForegroundWindowProbe.GetForegroundProcessName();
         _log.Debug(
-            "Automation observation publishing mainline foreground change. ProcessName={ProcessName}, WindowHandle={WindowHandle}",
+            "Automation observation publishing foreground window change. ProcessName={ProcessName}, WindowHandle={WindowHandle}",
             processName,
             hwnd);
 

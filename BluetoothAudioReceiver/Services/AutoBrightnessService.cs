@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -76,7 +76,7 @@ namespace BluetoothAudioReceiver.Services
             }
 
             _windowHandle = window.WindowHandle;
-            _log.Information("Auto brightness window initialized; session unlock comes from automation mainline");
+            _log.Information("Auto brightness window initialized; session unlock and foreground change come from the observation trigger bus");
         }
 
         public Task StopAsync()
@@ -569,17 +569,41 @@ namespace BluetoothAudioReceiver.Services
                 return;
             }
 
-            if (!triggerEvent.Payload.TryGetValue("reason", out var reason) ||
-                !string.Equals(reason, "session-SessionUnlock", StringComparison.OrdinalIgnoreCase))
+            if (!triggerEvent.Payload.TryGetValue("reason", out var reason) || string.IsNullOrWhiteSpace(reason))
             {
-                _log.Debug("Auto brightness ignored system signal because reason does not match unlock. Reason={Reason}", reason);
+                _log.Debug("Auto brightness ignored system signal because reason is missing");
                 return;
             }
 
-            _log.Information(
-                "Auto brightness accepted session unlock. CorrelationId={CorrelationId}",
-                triggerEvent.CorrelationId);
-            OnScreenUnlocked();
+            if (string.Equals(reason, "session-SessionUnlock", StringComparison.OrdinalIgnoreCase))
+            {
+                _log.Information(
+                    "Auto brightness accepted session unlock. CorrelationId={CorrelationId}",
+                    triggerEvent.CorrelationId);
+                OnScreenUnlocked();
+                return;
+            }
+
+            if (string.Equals(reason, "foreground-window-changed", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!triggerEvent.Payload.TryGetValue("windowHandle", out var handleText) ||
+                    !long.TryParse(handleText, out var handleValue))
+                {
+                    _log.Debug(
+                        "Auto brightness ignored foreground change because window handle is invalid. WindowHandle={WindowHandle}",
+                        handleText);
+                    return;
+                }
+
+                _log.Information(
+                    "Auto brightness accepted foreground window change from observation signal. WindowHandle={WindowHandle}, CorrelationId={CorrelationId}",
+                    handleValue,
+                    triggerEvent.CorrelationId);
+                OnForegroundWindowChanged(new IntPtr(handleValue));
+                return;
+            }
+
+            _log.Debug("Auto brightness ignored system signal because reason does not match unlock or foreground change. Reason={Reason}", reason);
         }
 
         public void Dispose()

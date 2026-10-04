@@ -22,7 +22,6 @@ internal sealed class AutomationObservationService : IDisposable
     private readonly BluetoothRadioMonitorService _bluetoothRadioMonitorService;
     private readonly IDisplayProvider _displayProvider;
     private readonly AutoDayNightService _autoDayNightService;
-    private readonly AutoBrightnessService _autoBrightnessService;
     private readonly IAppSettingsService _appSettingsService;
     private readonly AutomationGameModeDecisionService _gameModeDecisionService;
     private readonly AutomationObservationGetterSelector _getterSelector;
@@ -57,7 +56,6 @@ internal sealed class AutomationObservationService : IDisposable
         IBackgroundDispatchBus backgroundDispatchBus,
         IDisplayProvider displayProvider,
         AutoDayNightService autoDayNightService,
-        AutoBrightnessService autoBrightnessService,
         IAppSettingsService appSettingsService,
         AutomationGameModeDecisionService gameModeDecisionService,
         AutomationObservationGetterSelector getterSelector)
@@ -68,7 +66,6 @@ internal sealed class AutomationObservationService : IDisposable
         _bluetoothRadioMonitorService = bluetoothRadioMonitorService;
         _displayProvider = displayProvider;
         _autoDayNightService = autoDayNightService;
-        _autoBrightnessService = autoBrightnessService;
         _appSettingsService = appSettingsService;
         _gameModeDecisionService = gameModeDecisionService;
         _getterSelector = getterSelector;
@@ -195,7 +192,7 @@ internal sealed class AutomationObservationService : IDisposable
 
         var correlationId = Guid.NewGuid();
         var reason = $"bluetooth-radio-{state}";
-        _observationPublisher.PublishMainlineSystemSignal(reason, correlationId);
+        _observationPublisher.PublishSystemSignal(reason, correlationId);
         await RequestObservationRefreshAsync(reason, correlationId);
     }
 
@@ -235,7 +232,7 @@ internal sealed class AutomationObservationService : IDisposable
         {
             _log.Debug("Automation observation received power mode change. Mode={Mode}", e.Mode);
                 var correlationId = Guid.NewGuid();
-                _observationPublisher.PublishMainlineSystemSignal($"system-power-{e.Mode}", correlationId);
+                _observationPublisher.PublishSystemSignal($"system-power-{e.Mode}", correlationId);
                 if (e.Mode == PowerModes.Resume)
                 {
                     _observationPublisher.PublishBackgroundDispatchMessage(
@@ -261,7 +258,7 @@ internal sealed class AutomationObservationService : IDisposable
 
         _log.Debug("Automation observation received system time change");
         var correlationId = Guid.NewGuid();
-        _observationPublisher.PublishMainlineSystemSignal("system-time-changed", correlationId);
+        _observationPublisher.PublishSystemSignal("system-time-changed", correlationId);
         await RequestObservationRefreshAsync("system-time-changed", correlationId);
     }
 
@@ -277,7 +274,7 @@ internal sealed class AutomationObservationService : IDisposable
             _log.Debug("Automation observation received user preference change. Category={Category}", e.Category);
             var correlationId = Guid.NewGuid();
             var reason = $"user-preference-{e.Category}";
-            _observationPublisher.PublishMainlineSystemSignal(reason, correlationId);
+            _observationPublisher.PublishSystemSignal(reason, correlationId);
             await RequestObservationRefreshAsync(reason, correlationId);
         }
     }
@@ -290,9 +287,8 @@ internal sealed class AutomationObservationService : IDisposable
         }
 
         _log.Debug("Automation observation received foreground window change. WindowHandle={WindowHandle}", hwnd);
-        _autoBrightnessService.OnForegroundWindowChanged(hwnd);
         var correlationId = Guid.NewGuid();
-        _observationPublisher.PublishMainlineForegroundWindowChanged(hwnd, correlationId);
+        _observationPublisher.PublishForegroundWindowChanged(hwnd, correlationId);
         _observationPublisher.PublishBackgroundDispatchMessage(
             BackgroundDispatchMessageType.ForegroundWindowChanged,
             "foreground-window-changed",
