@@ -169,6 +169,7 @@ public partial class App : Application
                 services.AddSingleton<IAutomationObservationGetter>(sp => sp.GetRequiredService<PollingAutomationObservationGetter>());
                 services.AddSingleton<AutomationObservationGetterSelector>();
                 services.AddSingleton<IAutomationTriggerBus, AutomationTriggerBus>();
+                services.AddSingleton<AutomationProxyNotificationPolicy>();
                 services.AddSingleton<IAutomationTriggerRegistry, AutomationTriggerRegistry>();
                 services.AddSingleton<IAutomationConditionRegistry, AutomationConditionRegistry>();
                 services.AddSingleton<IAutomationPipelineRepository, AutomationPipelineRepository>();
@@ -474,6 +475,8 @@ public partial class App : Application
                     await Ioc.Default.GetRequiredService<IAutomationSystemContextHub>().InitializeAsync();
                     var automationRuleEngine = Ioc.Default.GetRequiredService<AutomationRuleEngine>();
                     automationRuleEngine.Initialize();
+                    // 决策层：订阅代理状态变化事件，决定是否弹提示。必须在观察服务启动前完成订阅。
+                    _ = Ioc.Default.GetRequiredService<AutomationProxyNotificationPolicy>();
                     await automationRuleEngine.ExecuteStartupPipelinesAsync();
                     await MainWindow.EnqueueOrInvokeAsync(async (_) =>
                         await Ioc.Default.GetRequiredService<AutomationObservationService>().StartAsync());
@@ -696,6 +699,7 @@ public partial class App : Application
         // Dispose all IDisposable services
         DisposeService<IAudioRouteHotkeyService>();
         DisposeService<AutomationObservationService>();
+        DisposeService<AutomationProxyNotificationPolicy>();
         DisposeService<AutomationRuleEngine>();
         DisposeService<AutoBrightnessService>();
         DisposeService<AutoDayNightService>();

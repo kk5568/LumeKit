@@ -59,7 +59,6 @@ internal sealed class AutomationObservationService : IDisposable
         AutoDayNightService autoDayNightService,
         AutoBrightnessService autoBrightnessService,
         IAppSettingsService appSettingsService,
-        INotificationService notificationService,
         IAutomationPipelineRepository pipelineRepository,
         AutomationObservationGetterSelector getterSelector)
     {
@@ -76,9 +75,7 @@ internal sealed class AutomationObservationService : IDisposable
         _observationPublisher = new AutomationObservationPublisher(
             _triggerBus,
             backgroundDispatchBus,
-            _systemContextHub,
-            _appSettingsService,
-            notificationService);
+            _systemContextHub);
         _observationCollector = new AutomationObservationCollector(
             _getterSelector,
             () => _cts?.Token ?? CancellationToken.None);
