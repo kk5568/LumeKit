@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="LumeKit"
+    Manufacturer="LumeKit Team"
+    Version="$(var.MsiVersion)"
+    UpgradeCode="{6D74CC95-3F90-4BF5-9AB6-2B7C4C8C2A2D}">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of LumeKit is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="LumeKit">
+        <Component Id="ApplicationComponent" Guid="{8E5A6C79-BA9B-4F8A-9F63-5A7D8B1D6D3C}">
+          <Shortcut
+            Id="StartMenuShortcut"
+            Directory="ApplicationProgramsFolder"
+            Name="LumeKit"
+            Description="LumeKit"
+            Target="[INSTALLFOLDER]BluetoothAudioReceiver.exe"
+            WorkingDirectory="INSTALLFOLDER" />
+          <RegistryValue Root="HKCU" Key="Software\LumeKit" Name="Installed" Type="integer" Value="1" />
+        </Component>
+
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="LumeKit" />
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="LumeKit" Level="1">
+      <ComponentRef Id="ApplicationComponent" />
+      <ComponentGroupRef Id="ApplicationFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

@@ -14,7 +14,7 @@
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   IgnorableNamespaces="mp rescap desktop desktop4 desktop6 uap uap5 genTemplate">
 
-  <Identity Name="BluetoothAudioReceiver" Publisher="CN=kk5568" Version="26.10.3.172" />
+  <Identity Name="BluetoothAudioReceiver" Publisher="CN=kk5568" Version="26.10.3.174" />
     
   <mp:PhoneIdentity PhoneProductId="8f256a41-5ee3-4218-97c6-12e1f8d5c234" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
     
@@ -75,6 +75,8 @@
     <DeviceCapability Name="webcam" />
   </Capabilities>
 </Package>
+
+
 
 
 

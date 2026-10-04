@@ -1,237 +1,166 @@
-param(
-    [ValidateSet('Patch', 'Minor', 'Major')]
-    [string]$Bump = 'Patch',
-    [string]$OutputDir = (Get-Location).Path
-)
+﻿$ErrorActionPreference = 'Stop'
 
-$ErrorActionPreference = 'Stop'
+$installerRoot = $PSScriptRoot
+$projectRoot = Split-Path -Parent $installerRoot
+$projectFile = Join-Path $projectRoot 'BluetoothAudioReceiver\BluetoothAudioReceiver.csproj'
+$propsFile = Join-Path $projectRoot 'Directory.Build.props'
+$publishProfile = Join-Path $projectRoot 'BluetoothAudioReceiver\Properties\PublishProfiles\win-x64.pubxml'
+$wixExe = Join-Path $projectRoot '.wix\wix.exe'
+$wixSource = Join-Path $installerRoot 'Product.wxs'
+$outputRoot = Join-Path $installerRoot 'output'
+$wixTempRoot = Join-Path $installerRoot 'temp'
+$publishDir = Join-Path $projectRoot 'BluetoothAudioReceiver\bin\Release\net10.0-windows10.0.22621.0\win-x64\publish'
+$logFile = Join-Path $outputRoot 'build.log'
 
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
-$projectDir = Join-Path $repoRoot 'BluetoothAudioReceiver'
-$installerDir = (Resolve-Path $scriptDir).Path
-$outputDir = if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    (Get-Location).Path
-} else {
-    $OutputDir
-}
-$propsPath = Join-Path $repoRoot 'Directory.Build.props'
-$publishDir = Join-Path $projectDir 'bin\Release\net10.0-windows10.0.22621.0\win-x64\publish'
-$wixToolDir = Join-Path $repoRoot '.wix'
-$dotnetHome = Join-Path $repoRoot '.dotnet-home'
-$nugetConfigPath = Join-Path $dotnetHome 'NuGet\NuGet.Config'
-
-New-Item -ItemType Directory -Path $dotnetHome -Force | Out-Null
-New-Item -ItemType Directory -Path (Split-Path -Parent $nugetConfigPath) -Force | Out-Null
-$env:DOTNET_CLI_HOME = $dotnetHome
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-$env:APPDATA = $dotnetHome
-$env:NUGET_PACKAGES = Join-Path $dotnetHome 'packages'
-
-if (-not (Test-Path -LiteralPath $nugetConfigPath)) {
-    @'
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <clear />
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
-  </packageSources>
-</configuration>
-'@ | Set-Content -LiteralPath $nugetConfigPath -Encoding utf8
+function Stop-Build([string]$stage, [string]$reason, [string]$details) {
+    if ([string]::IsNullOrWhiteSpace($reason)) {
+        $reason = 'PowerShell 捕获到未提供简短描述的错误。'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($details)) {
+        Add-Content -Path $logFile -Value "`r`n===== PowerShell 错误详情 =====`r`n$details"
+    }
+    Write-Host ''
+    Write-Host '================================' -ForegroundColor Red
+    Write-Host ' LumeKit MSI 打包失败' -ForegroundColor Red
+    Write-Host '================================' -ForegroundColor Red
+    Write-Host ''
+    Write-Host "失败阶段：$stage" -ForegroundColor Yellow
+    Write-Host "原因：$reason" -ForegroundColor Yellow
+    if (-not [string]::IsNullOrWhiteSpace($details)) {
+        Write-Host ''
+        Write-Host $details -ForegroundColor DarkYellow
+    }
+    Write-Host ''
+    Write-Host "详细日志：$logFile" -ForegroundColor Yellow
+    Read-Host '按 Enter 键退出'
+    exit 1
 }
 
-function Get-PropsValue {
-    param(
-        [string]$Path,
-        [string]$PropertyName
-    )
+New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+Set-Content -Path $logFile -Value ''
+$stage = '初始化'
 
-    $content = Get-Content -LiteralPath $Path -Raw
-    $match = [regex]::Match($content, "<$PropertyName>([^<]+)</$PropertyName>")
-    if (-not $match.Success) {
-        throw "Cannot find <$PropertyName> in $Path"
+try {
+    if (-not (Test-Path $projectFile)) {
+        throw "找不到项目文件：$projectFile"
+    }
+    if (-not (Test-Path $publishProfile)) {
+        throw "找不到 x64 发布配置：$publishProfile"
+    }
+    if (-not (Test-Path $propsFile)) {
+        throw "找不到版本配置：$propsFile"
+    }
+    if (-not (Test-Path $wixExe)) {
+        throw "找不到仓库内 WiX 工具：$wixExe"
     }
 
-    return $match.Groups[1].Value
-}
+    [xml]$props = Get-Content $propsFile
+    $versionNode = $props.Project.PropertyGroup.LumeKitVersion | Select-Object -First 1
+    $packageVersionNode = $props.Project.PropertyGroup.LumeKitPackageVersion | Select-Object -First 1
+    $currentVersion = [string]$versionNode
+    if ([string]::IsNullOrWhiteSpace($currentVersion)) {
+        throw 'Directory.Build.props 中没有有效的 LumeKitVersion。'
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$packageVersionNode)) {
+        throw 'Directory.Build.props 中没有有效的 LumeKitPackageVersion。'
+    }
 
-function Get-NextVersion {
-    param(
-        [string]$Current,
-        [ValidateSet('Patch', 'Minor', 'Major')]
-        [string]$BumpKind
-    )
+    $currentVersion = $currentVersion.Trim()
+    $versionParts = $currentVersion.Split('.')
+    if ($versionParts.Count -ne 5) {
+        throw "版本号格式无效：$currentVersion。格式应为 YYYY.M.D.Release.Build。"
+    }
+    if ($versionParts | Where-Object { $_ -notmatch '^\d+$' }) {
+        throw "版本号格式无效：$currentVersion。每一段都必须是数字。"
+    }
 
     $today = Get-Date
-    $year = $today.Year
-    $month = $today.Month
-    $day = $today.Day
-
-    $tailMajor = 0
-    $tailMinor = 0
-
-    if (-not [string]::IsNullOrWhiteSpace($Current)) {
-        $parts = $Current.Split('.', [System.StringSplitOptions]::RemoveEmptyEntries)
-        switch ($parts.Length) {
-            5 {
-                $tailMajor = [int]$parts[3]
-                $tailMinor = [int]$parts[4]
-            }
-            4 {
-                $tailMajor = [int]$parts[2]
-                $tailMinor = [int]$parts[3]
-            }
-            3 {
-                $tailMajor = [int]$parts[1]
-                $legacyPatch = [int]$parts[2]
-                $tailMajor += [int][math]::Floor($legacyPatch / 10)
-                $tailMinor = $legacyPatch % 10
-            }
-            2 {
-                $tailMajor = [int]$parts[0]
-                $tailMinor = [int]$parts[1]
-            }
-            default {
-                throw "Unsupported version format: $Current"
-            }
-        }
+    $buildNumber = [int]$versionParts[4] + 1
+    $appVersion = '{0}.{1}.{2}.{3}.{4}' -f $today.Year, $today.Month, $today.Day, $versionParts[3], $buildNumber
+    $packageVersion = '{0}.{1}.{2}.{3}{4}' -f `
+        ($today.Year % 100), `
+        $today.Month, `
+        $today.Day, `
+        $versionParts[3], `
+        $buildNumber
+    if ($packageVersion.Length -gt 27) {
+        throw "生成的 MSI 版本过长：$packageVersion。"
     }
 
-    switch ($BumpKind) {
-        'Major' {
-            $tailMajor++
-            $tailMinor = 0
-        }
-        'Minor' {
-            $tailMajor++
-            $tailMinor = 0
-        }
-        default {
-            $tailMinor++
-        }
+    $propsText = Get-Content $propsFile -Raw
+    $updatedPropsText = $propsText `
+        -replace '<LumeKitVersion>[^<]+</LumeKitVersion>', "<LumeKitVersion>$appVersion</LumeKitVersion>" `
+        -replace '<LumeKitPackageVersion>[^<]+</LumeKitPackageVersion>', "<LumeKitPackageVersion>$packageVersion</LumeKitPackageVersion>"
+    if ($updatedPropsText -eq $propsText) {
+        throw '没有找到可更新的版本节点。'
+    }
+    Set-Content -Path $propsFile -Value $updatedPropsText -Encoding utf8
+
+    $msiVersion = "$($today.Year % 100).$($today.Month).$($today.Day)"
+    $msiName = "LumeKit-$appVersion-x64.msi"
+    $msiPath = Join-Path $outputRoot $msiName
+
+    $stage = '检查环境'
+    Write-Host "$stage..." -ForegroundColor Cyan
+    if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+        throw '找不到 dotnet。'
     }
 
-    if ($tailMinor -ge 10) {
-        $tailMajor += [int][math]::Floor($tailMinor / 10)
-        $tailMinor = $tailMinor % 10
+    $stage = '清理旧输出'
+    Write-Host "$stage..." -ForegroundColor Cyan
+    Get-ChildItem $outputRoot -File -Filter '*.msi' -ErrorAction SilentlyContinue | Remove-Item -Force
+    if (Test-Path $publishDir) {
+        Remove-Item $publishDir -Recurse -Force
     }
 
-    return "$year.$month.$day.$tailMajor.$tailMinor"
-}
-
-function Convert-ToPackageVersion {
-    param([string]$DisplayVersion)
-
-    $parts = $DisplayVersion.Split('.', [System.StringSplitOptions]::RemoveEmptyEntries)
-    if ($parts.Length -ne 5) {
-        throw "Unsupported display version format: $DisplayVersion"
+    $stage = '程序发布'
+    Write-Host "$stage..." -ForegroundColor Cyan
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & dotnet publish $projectFile -p:PublishProfile=$publishProfile -p:UseSharedCompilation=false --nologo *>&1 |
+        Tee-Object -FilePath $logFile -Append
+    $publishExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    if ($publishExitCode -ne 0) {
+        throw "dotnet publish 返回错误代码 $publishExitCode。"
+    }
+    if (-not (Test-Path (Join-Path $publishDir 'BluetoothAudioReceiver.exe'))) {
+        throw "发布目录中找不到 BluetoothAudioReceiver.exe：$publishDir"
     }
 
-    $year = [int]$parts[0]
-    $month = [int]$parts[1]
-    $day = [int]$parts[2]
-    $tailMajor = [int]$parts[3]
-    $tailMinor = [int]$parts[4]
-    $serial = ($tailMajor * 10) + $tailMinor
-
-    return "$($year % 100).$month.$day.$serial"
-}
-
-function Set-PropsValue {
-    param(
-        [string]$Path,
-        [string]$PropertyName,
-        [string]$VersionValue
-    )
-
-    $content = Get-Content -LiteralPath $Path -Raw
-    $updated = [regex]::Replace(
-        $content,
-        "<$PropertyName>[^<]+</$PropertyName>",
-        "<$PropertyName>$VersionValue</$PropertyName>",
-        1)
-
-    if ($updated -eq $content) {
-        throw "Cannot update <$PropertyName> in $Path"
+    $stage = 'WiX 生成 MSI'
+    Write-Host "$stage..." -ForegroundColor Cyan
+    New-Item -ItemType Directory -Path $wixTempRoot -Force | Out-Null
+    $env:TEMP = $wixTempRoot
+    $env:TMP = $wixTempRoot
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $wixExe build $wixSource -arch x64 -d PublishDir=$publishDir -d MsiVersion=$msiVersion -o $msiPath *>&1 |
+        Tee-Object -FilePath $logFile -Append
+    $wixExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    if ($wixExitCode -ne 0) {
+        throw "WiX build 返回错误代码 $wixExitCode。"
+    }
+    if (-not (Test-Path $msiPath)) {
+        throw "WiX 没有生成预期的 MSI：$msiPath"
     }
 
-    Set-Content -LiteralPath $Path -Value $updated -Encoding utf8
+    $msiInfo = Get-Item $msiPath
+    Write-Host ''
+    Write-Host '================================' -ForegroundColor Green
+    Write-Host ' LumeKit MSI 打包完成' -ForegroundColor Green
+    Write-Host '================================' -ForegroundColor Green
+    Write-Host ''
+    Write-Host "版本：$appVersion"
+    Write-Host "MSI：$msiPath"
+    Write-Host "大小：$([math]::Round($msiInfo.Length / 1MB, 2)) MB"
+    Read-Host '按 Enter 键退出'
 }
-
-function Get-WixCommand {
-    $wix = Get-Command wix -ErrorAction SilentlyContinue
-    if ($null -ne $wix) {
-        return $wix.Source
-    }
-
-    $wixExe = Join-Path $wixToolDir 'wix.exe'
-    if (-not (Test-Path -LiteralPath $wixExe)) {
-        Write-Host "WiX CLI was not found. Installing it in $wixToolDir..."
-        New-Item -ItemType Directory -Path $wixToolDir -Force | Out-Null
-        dotnet tool install wix --tool-path $wixToolDir --version 6.* --no-cache --configfile $nugetConfigPath |
-            Out-Host
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $wixExe)) {
-            throw "Unable to install WiX CLI. Install WiX 6 manually or ensure NuGet access is available, then run this script again."
-        }
-    }
-
-    return $wixExe
-}
-
-$currentVersionText = Get-PropsValue -Path $propsPath -PropertyName 'LumeKitVersion'
-$nextDisplayVersion = Get-NextVersion -Current $currentVersionText -BumpKind $Bump
-$nextPackageVersion = Convert-ToPackageVersion -DisplayVersion $nextDisplayVersion
-$msiName = "LumeKit-$nextDisplayVersion-x64.msi"
-$resolvedOutputDir = [System.IO.Path]::GetFullPath($outputDir)
-$msiPath = Join-Path $resolvedOutputDir $msiName
-
-if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
-    New-Item -ItemType Directory -Path $resolvedOutputDir | Out-Null
-}
-
-Write-Host "Bumping display version $currentVersionText -> $nextDisplayVersion"
-Write-Host "Using package version $nextPackageVersion"
-Set-PropsValue -Path $propsPath -PropertyName 'LumeKitVersion' -VersionValue $nextDisplayVersion
-Set-PropsValue -Path $propsPath -PropertyName 'LumeKitPackageVersion' -VersionValue $nextPackageVersion
-
-Write-Host "Syncing version artifacts for $nextPackageVersion..."
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $installerDir 'Sync-Version.ps1') -Version $nextPackageVersion
-
-Write-Host "Publishing Release x64..."
-dotnet publish (Join-Path $projectDir 'BluetoothAudioReceiver.csproj') `
-    -c Release `
-    -p:Platform=x64 `
-    -p:PublishReadyToRun=false `
-    -r win-x64 `
-    --self-contained true `
-    --no-restore
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet publish failed with exit code $LASTEXITCODE."
-}
-
-if (-not (Test-Path -LiteralPath (Join-Path $publishDir 'BluetoothAudioReceiver.exe'))) {
-    throw "Published application was not found: $publishDir"
-}
-
-if (Test-Path -LiteralPath $msiPath) {
-    Remove-Item -LiteralPath $msiPath -Force
-}
-
-Write-Host "Building MSI $msiName..."
-$wixCommand = Get-WixCommand
-Push-Location $installerDir
-try {
-    & $wixCommand build BluetoothAudioReceiver.wxs -arch x64 -out $msiPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "WiX build failed with exit code $LASTEXITCODE."
-    }
+catch {
+    $errorRecord = $_
+    $details = $errorRecord | Format-List * -Force | Out-String
+    Stop-Build $stage $errorRecord.Exception.Message $details
 }
 finally {
-    Pop-Location
 }
-
-if (-not (Test-Path -LiteralPath $msiPath)) {
-    throw "MSI was not created: $msiPath"
-}
-
-Get-Item -LiteralPath $msiPath | Select-Object FullName,Length,LastWriteTime | Format-List
