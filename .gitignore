@@ -38,6 +38,8 @@ packages/
 *.snupkg
 
 # Installer / signing outputs
+installer/output/
+installer/temp/
 installer/*.msi
 installer/*.exe
 installer/*.wixpdb
@@ -103,3 +105,12 @@ BluetoothAudioReceiver/BundleArtifacts/
 !*.config
 !*.wxs
 !*.wxl
+
+# Local build tools, packaging scratch space, and external reference drops
+# NOTE: kept at the end of the file so that no negation rule above can
+# re-include them. Silently un-ignored once (参考项目/ vs 引用项目/).
+.wix/
+.appdata/
+installer/temp/
+installer/output/
+引用项目/
