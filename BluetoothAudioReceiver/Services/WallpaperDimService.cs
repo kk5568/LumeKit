@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
@@ -13,10 +14,9 @@ namespace BluetoothAudioReceiver.Services;
 /// Switches the system wallpaper to a generated dimmed copy and keeps the
 /// original wallpaper identity so a later restore cannot select an old image.
 /// </summary>
-public sealed class WallpaperDimService
+public sealed partial class WallpaperDimService
 {
     private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(WallpaperDimService));
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private const string DimmedNameSuffix = "_lumekit_dim";
     private readonly SemaphoreSlim _operationLock = new(1, 1);
     private readonly string _statePath = Path.Combine(
@@ -608,7 +608,7 @@ public sealed class WallpaperDimService
                 return null;
             }
 
-            return JsonSerializer.Deserialize<WallpaperDimState>(File.ReadAllText(_statePath), JsonOptions);
+            return JsonSerializer.Deserialize(File.ReadAllText(_statePath), WallpaperDimStateContext.Default.WallpaperDimState);
         }
         catch (Exception ex)
         {
@@ -627,7 +627,7 @@ public sealed class WallpaperDimService
 
         Directory.CreateDirectory(directory);
         var temporaryPath = _statePath + ".tmp";
-        File.WriteAllText(temporaryPath, JsonSerializer.Serialize(state, JsonOptions), Encoding.UTF8);
+        File.WriteAllText(temporaryPath, JsonSerializer.Serialize(state, WallpaperDimStateContext.Default.WallpaperDimState), Encoding.UTF8);
         File.Move(temporaryPath, _statePath, overwrite: true);
     }
 
@@ -691,6 +691,15 @@ public sealed class WallpaperDimService
             originalPath,
             dimmedPath,
             opacity);
+    }
+
+    /// <summary>
+    /// 编译期生成的 JSON 元数据，替代反射写法，满足 AOT/裁剪要求。
+    /// </summary>
+    [JsonSourceGenerationOptions(WriteIndented = true)]
+    [JsonSerializable(typeof(WallpaperDimState))]
+    private sealed partial class WallpaperDimStateContext : JsonSerializerContext
+    {
     }
 
     private sealed class WallpaperDimState
