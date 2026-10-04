@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package
     Name="LumeKit"
     Manufacturer="LumeKit Team"
@@ -8,6 +9,16 @@
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of LumeKit is already installed." />
     <MediaTemplate EmbedCab="yes" />
+
+    <!-- 安装/卸载前自动关闭正在运行的旧版本，避免 Program Files 下的文件被占用导致安装失败。
+         TerminateProcess=30 表示礼貌关闭等 30 秒，仍不退出就强制结束进程。 -->
+    <util:CloseApplication
+      Target="BluetoothAudioReceiver.exe"
+      CloseMessage="yes"
+      PromptToContinue="no"
+      RebootPrompt="no"
+      TerminateProcess="30" />
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="LumeKit">
         <Component Id="ApplicationComponent" Guid="{8E5A6C79-BA9B-4F8A-9F63-5A7D8B1D6D3C}">
