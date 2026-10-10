@@ -147,6 +147,9 @@ public sealed partial class MainWindow : WindowEx
 
         if (rootFrame is null)
         {
+            // Content initialization failed: without a root frame there is nothing to show,
+            // so the window must stay hidden. Never fail silently here - log it.
+            _log.Error("Main window content initialization failed: no root frame was created, so the main window stays hidden.");
             return;
         }
 
@@ -214,8 +217,9 @@ public sealed partial class MainWindow : WindowEx
                 }
             }
         }
-        catch (COMException)
+        catch (COMException ex)
         {
+            _log.Error(ex, "Failed to initialize main window content (COMException, HRESULT 0x{HResult:X8}); the main window will not be shown.", ex.HResult);
             return null;
         }
     }

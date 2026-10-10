@@ -114,3 +114,7 @@ BluetoothAudioReceiver/BundleArtifacts/
 installer/temp/
 installer/output/
 引用项目/
+
+# Local tree snapshots produced by tooling: full copies, never published.
+.snapshots/
+

@@ -213,7 +213,6 @@ internal sealed class AutomationPipelineRepository : IAutomationPipelineReposito
         return actionType switch
         {
             AutomationSupportCatalog.ActionSetBrightness => AutomationActionParameterHelper.BuildBrightness(AutomationActionParameterHelper.ReadBrightness(parametersJson, 80)),
-            AutomationSupportCatalog.ActionSetInputVolume => AutomationActionParameterHelper.BuildInputVolume(AutomationActionParameterHelper.ReadInputVolumePercentage(parametersJson, 50)),
             AutomationSupportCatalog.ActionSetTheme => AutomationActionParameterHelper.BuildValue(AutomationActionParameterHelper.ReadValue(parametersJson, "dark")),
             AutomationSupportCatalog.ActionSendGHelperHotkey => AutomationActionParameterHelper.BuildValue(GHelperShortcutCatalog.NormalizeSelectionText(AutomationActionParameterHelper.ReadValue(parametersJson))),
             AutomationSupportCatalog.ActionSendWindowsHotkey => AutomationActionParameterHelper.BuildValue(WindowsShortcutCatalog.NormalizeSelectionText(AutomationActionParameterHelper.ReadValue(parametersJson))),

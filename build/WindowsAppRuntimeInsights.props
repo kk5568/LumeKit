@@ -1,0 +1,157 @@
+<Project>
+
+  <!--
+    Windows App SDK (self-contained) does not deploy
+    Microsoft.WindowsAppRuntime.Insights.Resource.dll. The AppNotifications bootstrap then
+    fails with 0x8007007E (ERROR_MOD_NOT_FOUND) while registering the notification
+    identity, so an unpackaged build can never raise a toast.
+
+    The file does ship inside the framework MSIX of Microsoft.WindowsAppSDK.Runtime
+    (tools\MSIX\win10-<arch>\Microsoft.WindowsAppRuntime.<major>.msix); the stock build
+    pipeline simply never unpacks it. This file extracts that one entry and keeps it in
+    the output and publish directories.
+
+    Nothing else is missing: the deploy list in Microsoft.WindowsAppSDK.Foundation's
+    runtimes-framework\win-<arch>\native folder agrees exactly with the MSIX manifest for
+    that folder, except for this single file.
+  -->
+
+  <PropertyGroup>
+    <WindowsAppSDKInsightsFileName>Microsoft.WindowsAppRuntime.Insights.Resource.dll</WindowsAppSDKInsightsFileName>
+  </PropertyGroup>
+
+  <Target
+    Name="IncludeWindowsAppRuntimeInsightsResource"
+    AfterTargets="Build;Publish"
+    Condition="'$(WindowsAppSDKSelfContained)' == 'true'">
+
+    <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+      <_InsightsRuntimePlatform>win10-x64</_InsightsRuntimePlatform>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
+      <_InsightsRuntimePlatform>win10-x86</_InsightsRuntimePlatform>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-arm64'">
+      <_InsightsRuntimePlatform>win10-arm64</_InsightsRuntimePlatform>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_InsightsRuntimePlatform)' != ''">
+      <!-- Version-agnostic: every Microsoft.WindowsAppSDK.Runtime the restore resolved.
+           The framework MSIX is by far the largest file of the package (the DDLM/Main/
+           Singleton companions are ~100 KB), so the task below orders by size. -->
+      <_InsightsRuntimeMsix Include="$(NuGetPackageRoot)microsoft.windowsappsdk.runtime\*\tools\MSIX\$(_InsightsRuntimePlatform)\Microsoft.WindowsAppRuntime.*.msix" />
+    </ItemGroup>
+
+    <Warning
+      Condition="'$(_InsightsRuntimePlatform)' == ''"
+      Text="WindowsAppRuntimeInsights: RuntimeIdentifier '$(RuntimeIdentifier)' is not a win-&lt;arch&gt; identifier; the Insights resource was not deployed and toast notifications will fail to register." />
+
+    <ExtractWindowsAppRuntimeInsightsEntry
+      Condition="'@(_InsightsRuntimeMsix)' != ''"
+      MsixPaths="@(_InsightsRuntimeMsix)"
+      EntryName="$(WindowsAppSDKInsightsFileName)"
+      OutputPath="$(IntermediateOutputPath)$(WindowsAppSDKInsightsFileName)">
+      <Output TaskParameter="ExtractedPath" PropertyName="_InsightsExtractedPath" />
+      <Output TaskParameter="ExtractedFrom" PropertyName="_InsightsExtractedFrom" />
+    </ExtractWindowsAppRuntimeInsightsEntry>
+
+    <Warning
+      Condition="'@(_InsightsRuntimeMsix)' != '' and '$(_InsightsExtractedPath)' == ''"
+      Text="WindowsAppRuntimeInsights: '$(WindowsAppSDKInsightsFileName)' was not found inside the framework MSIX; toast notifications will fail to register." />
+
+    <ItemGroup Condition="'$(_InsightsExtractedPath)' != ''">
+      <_InsightsFileToDeploy Include="$(_InsightsExtractedPath)" />
+    </ItemGroup>
+
+    <Copy
+      Condition="'$(_InsightsExtractedPath)' != ''"
+      SourceFiles="@(_InsightsFileToDeploy)"
+      DestinationFolder="$(TargetDir)"
+      SkipUnchangedFiles="true" />
+
+    <Copy
+      Condition="'$(_InsightsExtractedPath)' != '' and '$(PublishDir)' != ''"
+      SourceFiles="@(_InsightsFileToDeploy)"
+      DestinationFolder="$(PublishDir)"
+      SkipUnchangedFiles="true" />
+
+    <Message
+      Condition="'$(_InsightsExtractedPath)' != ''"
+      Importance="normal"
+      Text="WindowsAppRuntimeInsights: deployed $(WindowsAppSDKInsightsFileName) into $(TargetDir) from '$(_InsightsExtractedFrom)'." />
+  </Target>
+
+  <UsingTask
+    TaskName="ExtractWindowsAppRuntimeInsightsEntry"
+    TaskFactory="RoslynCodeTaskFactory"
+    AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <MsixPaths ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <EntryName ParameterType="System.String" Required="true" />
+      <OutputPath ParameterType="System.String" Required="true" />
+      <ExtractedPath ParameterType="System.String" Output="true" />
+      <ExtractedFrom ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        // Match the entry by file name at any depth of the archive.
+        var pattern = "(^|[\\\\/])" + Regex.Escape(EntryName) + "([\\\\/]|$)";
+
+        // Prefer the framework MSIX (the largest file in the package folder) so that a
+        // stale Microsoft.WindowsAppSDK.Runtime from an older SDK cannot win by version
+        // ordering.
+        var candidates = new System.Collections.Generic.List<string>();
+        foreach (var item in MsixPaths)
+        {
+            if (File.Exists(item.ItemSpec))
+            {
+                candidates.Add(item.ItemSpec);
+            }
+        }
+
+        candidates.Sort(delegate (string left, string right)
+        {
+            return new FileInfo(right).Length.CompareTo(new FileInfo(left).Length);
+        });
+
+        foreach (var msixPath in candidates)
+        {
+            using (var archive = ZipFile.OpenRead(msixPath))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (!Regex.IsMatch(entry.FullName, pattern))
+                    {
+                        continue;
+                    }
+
+                    var destination = Path.GetFullPath(OutputPath);
+                    var destinationDirectory = Path.GetDirectoryName(destination);
+                    if (!string.IsNullOrEmpty(destinationDirectory))
+                    {
+                        Directory.CreateDirectory(destinationDirectory);
+                    }
+
+                    entry.ExtractToFile(destination, true);
+                    Log.LogMessage(
+                        MessageImportance.Normal,
+                        "WindowsAppRuntimeInsights: extracted '{0}' from '{1}'.",
+                        entry.FullName,
+                        msixPath);
+
+                    ExtractedPath = destination;
+                    ExtractedFrom = msixPath;
+                    return true;
+                }
+            }
+        }
+
+        return true;
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+</Project>

@@ -11,8 +11,6 @@ public static partial class AutomationOptionCatalog
 
     public static IReadOnlyList<string> ThemeOptions { get; } = ["浅色", "深色", "跟随系统"];
 
-    public static IReadOnlyList<string> InputVolumeOptions { get; } = ["0", "1", "2", "3"];
-
     public static IReadOnlyList<string> WaitOptions { get; } = ["1 秒", "3 秒", "5 秒", "10 秒"];
 
     public static IReadOnlyList<string> BrightnessOptions { get; } =

@@ -5,6 +5,9 @@
 > **本文已过期，仅作历史参考。** 文中提到的 `AutomationMainlineBus`、`AutomationTraceStore`、
 > `AutomationTraceLogger`、`AutomationSessionStateStore`、`WallpaperDimService`，以及状态保存/恢复动作，
 > 都已在 17.0 优化和后续清理中删除。当前口径以 `开发文档\开发计划.md` 为准。
+>
+> 本文已于 2026-10-11 归档到 `docs/archive/`。其中仍然有效的边界规则和开发判断标准已并入
+> `开发文档/技术方案.md` 第 3.5 节。
 
 ## 1. 总体结构
 

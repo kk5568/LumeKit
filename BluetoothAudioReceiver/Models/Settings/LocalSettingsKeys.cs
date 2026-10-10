@@ -8,7 +8,6 @@ public class LocalSettingsKeys
 
     public readonly string BackdropTypeKey = "Backdrop";
 
-    public readonly string InputVolumeIndexKey = "InputVolumeIndex";
     public readonly string BatteryChargeLimitKey = "BatteryChargeLimit";
 
     public readonly string NotificationEnabledKey = "NotificationEnabled";

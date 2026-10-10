@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -856,7 +856,6 @@ public sealed partial class AutomationActionIconGlyphConverter : IValueConverter
         return AutomationDisplayTextConverter.ToDisplayText(value?.ToString()) switch
         {
             "调整亮度" => "\uE706",
-            "调整音量" => "\uE767",
             "输入音频" => "\uE720",
             "音频输出" => "\uE8D6",
             "深色模式" => "\uE708",
@@ -947,7 +946,6 @@ internal static class AutomationTokens
     public const string ProcessStopped = "程序退出";
     public const string PowerState = "电源状态";
     public const string Brightness = "调整亮度";
-    public const string Volume = "调整音量";
     public const string LaunchProgram = "启动程序";
     public const string CloseProgram = "关闭程序";
     public const string OpenUrl = "打开网页";

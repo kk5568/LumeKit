@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -399,11 +400,12 @@ namespace BluetoothAudioReceiver.Services
                 return (0, 0, 0, 0, 0, 0, 0, 0);
             }
 
-            double totalBrightness = 0;
-            double totalColorTemp = 0;
-            double totalR = 0;
-            double totalG = 0;
-            double totalB = 0;
+            // 每帧各自算一份结果，最后取中位数，避免某一帧异常（过曝/过暗）把结果带偏。
+            var frameBrightness = new List<double>();
+            var frameColorTemp = new List<double>();
+            var frameAvgR = new List<double>();
+            var frameAvgG = new List<double>();
+            var frameAvgB = new List<double>();
             int successFrames = 0;
             int width = 0;
             int height = 0;
@@ -444,6 +446,9 @@ namespace BluetoothAudioReceiver.Services
 
                     double brightness = 0;
                     double colorTemp = 0;
+                    double frameR = 0;
+                    double frameG = 0;
+                    double frameB = 0;
                     var pixelBuffer = new Windows.Storage.Streams.Buffer((uint)(width * height * 4));
                     bitmap.CopyToBuffer(pixelBuffer);
                     var bytes = new byte[pixelBuffer.Length];
@@ -462,18 +467,24 @@ namespace BluetoothAudioReceiver.Services
                         var r = bytes[j + 2];
 
                         brightness += 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                        totalR += r;
-                        totalG += g;
-                        totalB += b;
+                        frameR += r;
+                        frameG += g;
+                        frameB += b;
                         var ratio = r - b;
                         colorTemp += 4000 + (ratio * 100);
                     }
 
                     brightness /= pixelCount;
                     colorTemp /= pixelCount;
+                    frameR /= pixelCount;
+                    frameG /= pixelCount;
+                    frameB /= pixelCount;
 
-                    totalBrightness += brightness;
-                    totalColorTemp += colorTemp;
+                    frameBrightness.Add(brightness);
+                    frameColorTemp.Add(colorTemp);
+                    frameAvgR.Add(frameR);
+                    frameAvgG.Add(frameG);
+                    frameAvgB.Add(frameB);
                     successFrames++;
                 }
                 catch (Exception ex)
@@ -492,16 +503,32 @@ namespace BluetoothAudioReceiver.Services
                 return (0, width, height, 0, 0, 0, 0, 0);
             }
 
-            var totalPixels = Math.Max(1, (double)successFrames * width * height);
             return (
                 successFrames,
                 width,
                 height,
-                totalBrightness / successFrames,
-                totalColorTemp / successFrames,
-                totalR / totalPixels,
-                totalG / totalPixels,
-                totalB / totalPixels);
+                Median(frameBrightness),
+                Median(frameColorTemp),
+                Median(frameAvgR),
+                Median(frameAvgG),
+                Median(frameAvgB));
+        }
+
+        private static double Median(List<double> values)
+        {
+            if (values.Count == 0)
+            {
+                return 0;
+            }
+
+            var ordered = values.OrderBy(v => v).ToArray();
+            var middle = ordered.Length / 2;
+            if (ordered.Length % 2 == 1)
+            {
+                return ordered[middle];
+            }
+
+            return (ordered[middle - 1] + ordered[middle]) / 2.0;
         }
 
         private async Task<bool> EnsureCameraReadyForReadAsync(string source)

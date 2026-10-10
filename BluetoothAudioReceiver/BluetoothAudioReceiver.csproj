@@ -31,6 +31,7 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!-- WinUI Properties -->
     <UseWinUI>true</UseWinUI>
@@ -45,6 +46,7 @@
     <NoWarn>$(NoWarn);WMC1506</NoWarn>
     <EnableMsixTooling>true</EnableMsixTooling>
     <LangVersion>preview</LangVersion>
+    <SelfContained Condition="'$(Configuration)' == 'Debug'">false</SelfContained>
     <!-- Custom Settings -->
     <DefineConstants>DISABLE_XAML_GENERATED_MAIN;$(DefineConstants)</DefineConstants><!-- Custom Program -->
     <DefineConstants Condition="'$(Configuration)'=='Release'">SINGLE_INSTANCE;$(DefineConstants)</DefineConstants><!-- Single Instance -->
@@ -133,7 +135,12 @@
   <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
     <ProjectCapability Include="Msix" />
   </ItemGroup>
-  
+
+  <!-- Self-contained Windows App SDK does not deploy Microsoft.WindowsAppRuntime.Insights.Resource.dll,
+       which makes AppNotificationManager registration fail with 0x8007007E. Extract it from the
+       framework MSIX at build/Publish time. See build/WindowsAppRuntimeInsights.props. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\build\WindowsAppRuntimeInsights.props" />
+
 </Project>
 
 

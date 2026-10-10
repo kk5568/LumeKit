@@ -18,6 +18,10 @@ namespace BluetoothAudioReceiver.Services
         private const double NightLightMaxColorTempKelvin = 6500;
         private const double NeutralColorTempKelvin = 6500;
         private const int UnlockAutoBrightnessDelayMs = 500;
+        // 采样帧数：多采几帧取中位数，单帧异常不会带偏结果。
+        private const int SampleFrameCount = 5;
+        // 环境冷暖的标定尺子：R 与 B 的相对差达到这个值就算“很暖/很冷”的一极。
+        private const double ColorWarmthSpan = 0.15;
         private static readonly TimeSpan RequestLimitWindow = TimeSpan.FromSeconds(2);
 
         private readonly CameraReaderService _cameraReader;
@@ -316,6 +320,9 @@ namespace BluetoothAudioReceiver.Services
         {
             var shouldLogTiming = ShouldLogTiming(source);
             var startedAt = Stopwatch.GetTimestamp();
+
+            // 冷却计时对所有来源统一刷新：只要真正调过一次，前台窗口那一侧就重新开始计时。
+            _lastForegroundRequestAt = DateTimeOffset.UtcNow;
             if (shouldLogTiming)
             {
                 _log.Information("Auto brightness timing: execution entered. Source={Source}", source);
@@ -334,17 +341,17 @@ namespace BluetoothAudioReceiver.Services
                         Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
                 }
 
-                _log.Debug("Camera sample started. Source={Source}, FrameCount={FrameCount}", source, 3);
+                _log.Debug("Camera sample started. Source={Source}, FrameCount={FrameCount}", source, SampleFrameCount);
                 if (shouldLogTiming)
                 {
                     _log.Information(
                         "Auto brightness timing: camera sample starts. Source={Source}, FrameCount={FrameCount}, ElapsedMs={ElapsedMs:F0}",
                         source,
-                        3,
+                        SampleFrameCount,
                         Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
                 }
 
-                var metrics = await _cameraReader.GetSampleMetricsAsync(frameCount: 3);
+                var metrics = await _cameraReader.GetSampleMetricsAsync(frameCount: SampleFrameCount);
                 if (shouldLogTiming)
                 {
                     _log.Information(
@@ -358,6 +365,17 @@ namespace BluetoothAudioReceiver.Services
                     "Camera sample completed. Source={Source}, Brightness={Brightness}",
                     source,
                     metrics.Brightness);
+
+                // 一帧都没拍到（或数值异常）时，相机返回的是固定回退值，不能拿来当真数据调屏幕。
+                if (metrics.SuccessFrames <= 0 || double.IsNaN(metrics.Brightness))
+                {
+                    _log.Warning(
+                        "Auto brightness skipped because camera sample is invalid. Source={Source}, SuccessFrames={SuccessFrames}",
+                        source,
+                        metrics.SuccessFrames);
+                    return;
+                }
+
                 var envBrightnessPercent = Math.Clamp(metrics.Brightness / 255.0 * 100.0, 0.0, 100.0);
 
                 var minBrightness = _settings.MinBrightness;
@@ -367,7 +385,10 @@ namespace BluetoothAudioReceiver.Services
                 var targetBrightness = minBrightness + (envBrightnessPercent / 100.0) * (maxBrightness - minBrightness);
                 targetBrightness = Math.Clamp(targetBrightness, 0, 100);
 
-                var targetColorTemp = minColorTemp + (envBrightnessPercent / 100.0) * (maxColorTemp - minColorTemp);
+                // 色温走独立的冷暖通道：环境越暖，屏幕色温越低（数值越小越暖）。
+                var warmthDiff = ComputeWarmthDiff(metrics);
+                var warmthPercent = ComputeWarmthPercent(warmthDiff);
+                var targetColorTemp = maxColorTemp - (warmthPercent / 100.0) * (maxColorTemp - minColorTemp);
                 targetColorTemp = Math.Clamp(targetColorTemp, minColorTemp, maxColorTemp);
 
                 _log.Debug(
@@ -388,11 +409,13 @@ namespace BluetoothAudioReceiver.Services
 
                 _log.Debug("Brightness apply completed. Source={Source}", source);
                 _log.Information(
-                    "One-shot auto brightness executed from {Source}: env={EnvBrightnessPercent:F1}, targetBrightness={TargetBrightness:F0}, targetColorTemp={TargetColorTemp:F0}",
+                    "One-shot auto brightness executed from {Source}: env={EnvBrightnessPercent:F1}, targetBrightness={TargetBrightness:F0}, targetColorTemp={TargetColorTemp:F0}, warmth={WarmthPercent:F1}, warmthDiff={WarmthDiff:F4}",
                     source,
                     envBrightnessPercent,
                     targetBrightness,
-                    targetColorTemp);
+                    targetColorTemp,
+                    warmthPercent,
+                    warmthDiff);
 
                 ShowSuccessNotification(source, targetBrightness, targetColorTemp);
             }
@@ -522,6 +545,25 @@ namespace BluetoothAudioReceiver.Services
         private static bool ShouldLogTiming(string source)
         {
             return string.Equals(source, "screen-unlock", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // 环境冷暖的原始差值：R 比 B 多就是暖，少就是冷。除以三通道总和可抵消整体明暗变化。
+        private static double ComputeWarmthDiff(CameraSampleMetrics metrics)
+        {
+            var total = metrics.AvgR + metrics.AvgG + metrics.AvgB;
+            if (total <= 0)
+            {
+                return 0;
+            }
+
+            return (metrics.AvgR - metrics.AvgB) / total;
+        }
+
+        // 把原始差值折算成 0~100 的冷暖百分比：0=很冷，50=中性，100=很暖。
+        private static double ComputeWarmthPercent(double warmthDiff)
+        {
+            var normalized = Math.Clamp(warmthDiff / ColorWarmthSpan, -1.0, 1.0);
+            return 50.0 + normalized * 50.0;
         }
 
         private (double MinColorTemp, double MaxColorTemp) ResolveColorTemperatureRange()

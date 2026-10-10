@@ -4,11 +4,7 @@ namespace BluetoothAudioReceiver.Contracts.Services;
 
 public interface IAudioProvider
 {
-    int CurrentInputVolumeIndex { get; }
-
     Task SetInputDeviceAsync(string deviceId, bool disconnect = false, CancellationToken cancellationToken = default);
-
-    Task SetInputVolumeAsync(int index, CancellationToken cancellationToken = default);
 
     Task<string?> GetCurrentOutputDeviceIdAsync(CancellationToken cancellationToken = default);
 

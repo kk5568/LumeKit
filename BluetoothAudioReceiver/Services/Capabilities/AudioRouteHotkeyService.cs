@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -39,7 +39,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
     private readonly INotificationService _notificationService;
     private readonly ILocalSettingsService _localSettingsService;
     private readonly AutoBrightnessService _autoBrightnessService;
-    private readonly InputAudioVolumeService _inputAudioVolumeService;
     private readonly AudioOutputDeviceWatcherService _audioOutputDeviceWatcherService;
 
     private readonly ConcurrentDictionary<int, (HOT_KEY_MODIFIERS Modifiers, uint Key)> _registeredHotkeys = [];
@@ -104,7 +103,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
         INotificationService notificationService,
         ILocalSettingsService localSettingsService,
         AutoBrightnessService autoBrightnessService,
-        InputAudioVolumeService inputAudioVolumeService,
         AudioOutputDeviceWatcherService audioOutputDeviceWatcherService)
     {
         _connectionService = connectionService;
@@ -112,7 +110,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
         _notificationService = notificationService;
         _localSettingsService = localSettingsService;
         _autoBrightnessService = autoBrightnessService;
-        _inputAudioVolumeService = inputAudioVolumeService;
         _audioOutputDeviceWatcherService = audioOutputDeviceWatcherService;
 
         _connectionService.DeviceConnected += OnPlaybackDeviceConnected;
@@ -515,7 +512,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
                 return false;
             }
 
-            await _inputAudioVolumeService.ApplyCurrentVolumeAsync();
             await _appSettingsService.SetPreferredOutputDeviceIdAsync(target.Id);
             await DevicePriorityHelper.MarkDeviceAsUsedAsync(_localSettingsService, target.Id);
 
@@ -733,7 +729,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
 
             if (ok)
             {
-                await _inputAudioVolumeService.ApplyCurrentVolumeAsync();
                 await _appSettingsService.SetPreferredOutputDeviceIdAsync(next.Device.Id);
                 await DevicePriorityHelper.MarkDeviceAsUsedAsync(_localSettingsService, next.Device.Id);
                 var name = string.IsNullOrWhiteSpace(next.Device.Name) ? "输出设备" : next.Device.Name;
@@ -2433,7 +2428,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
                 var currentAfter = GetCurrentDefaultOutputEndpointId() ?? string.Empty;
                 if (ok && string.Equals(currentAfter, targetEndpointId, StringComparison.OrdinalIgnoreCase))
                 {
-                    await _inputAudioVolumeService.ApplyCurrentVolumeAsync();
                     await _appSettingsService.SetPreferredOutputDeviceIdAsync(preferredDevice.Id);
                     await DevicePriorityHelper.MarkDeviceAsUsedAsync(_localSettingsService, preferredDevice.Id);
                     RaiseDebug($"已恢复默认输出：{preferredDevice.Name}");

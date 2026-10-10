@@ -1,4 +1,4 @@
-﻿<Page
+<Page
     x:Name="RootPage"
     x:Class="BluetoothAudioReceiver.Views.Pages.AutomationEditorPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -270,7 +270,7 @@
                         <ComboBox
                             Grid.Column="2"
                             Style="{StaticResource EditorComboBoxStyle}"
-                            Visibility="{Binding Title, Converter={StaticResource AutomationActionTitleVisibilityConverter}, ConverterParameter=调整亮度|调整音量|电源模式|深色模式|等待|音频输出|GHelper 快捷键|Win11 系统快捷键|触摸板}"
+                            Visibility="{Binding Title, Converter={StaticResource AutomationActionTitleVisibilityConverter}, ConverterParameter=调整亮度|电源模式|深色模式|等待|音频输出|GHelper 快捷键|Win11 系统快捷键|触摸板}"
                             ItemsSource="{Binding ParameterOptions}"
                             SelectedItem="{Binding Subtitle, Mode=TwoWay}"
                             SelectionChanged="ParameterCombo_SelectionChanged" />

@@ -21,19 +21,6 @@
 
     <ScrollViewer Padding="24" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="16">
-            <controls:SettingsCard Header="输入音频增益"
-                                   Description="在当前音量基础上提高输入音频的增益"
-                                   Visibility="Collapsed">
-                <ComboBox
-                    HorizontalAlignment="Right"
-                    SelectedIndex="{x:Bind ViewModel.InputVolumeIndex, Mode=TwoWay}">
-                    <ComboBoxItem Content="+20%" />
-                    <ComboBoxItem Content="+40%" />
-                    <ComboBoxItem Content="+60%" />
-                    <ComboBoxItem Content="+80%" />
-                </ComboBox>
-            </controls:SettingsCard>
-
             <StackPanel Spacing="10">
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>

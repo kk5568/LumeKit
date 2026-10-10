@@ -20,9 +20,6 @@ internal static class AutomationActionParameterHelper
     public static string BuildBrightness(int brightness)
         => $$"""{"brightness":{{Math.Clamp(brightness, 0, 100)}}}""";
 
-    public static string BuildInputVolume(int percentage)
-        => $$"""{"percentage":{{Math.Clamp(percentage, 0, 100)}}}""";
-
     public static string BuildPowerMode(string option)
         => $$"""{"schemeGuid":"{{EscapeJsonString(AutomationOptionCatalog.ExtractPowerModeGuid(option))}}","displayName":"{{EscapeJsonString(AutomationOptionCatalog.ExtractPowerModeDisplayName(option))}}"}""";
 
@@ -55,16 +52,6 @@ internal static class AutomationActionParameterHelper
         if (TryReadInt(parameters, "brightness", out var brightness))
         {
             return Math.Clamp(brightness, 0, 100);
-        }
-
-        return ReadDigits(parameters, fallback);
-    }
-
-    public static int ReadInputVolumePercentage(string? parameters, int fallback = 80)
-    {
-        if (TryReadInt(parameters, "percentage", out var percentage))
-        {
-            return Math.Clamp(percentage, 0, 100);
         }
 
         return ReadDigits(parameters, fallback);

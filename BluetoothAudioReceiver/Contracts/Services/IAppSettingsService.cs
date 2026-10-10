@@ -18,10 +18,6 @@ public interface IAppSettingsService
 
     Task SetBackdropAsync(BackdropType type);
 
-    int InputVolumeIndex { get; }
-
-    Task SetInputVolumeIndexAsync(int index);
-
     int BatteryChargeLimit { get; }
 
     Task SetBatteryChargeLimitAsync(int limitPercent);

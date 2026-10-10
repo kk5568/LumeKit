@@ -27,7 +27,6 @@ internal static class AutomationNotificationFormatter
             AutomationSupportCatalog.ActionDisableTouchpad => "触摸板 · 关闭",
             AutomationSupportCatalog.ActionEnableTouchpad => "触摸板 · 开启",
             AutomationSupportCatalog.ActionSetBrightness => $"亮度 · {AutomationActionParameterHelper.ReadBrightness(step.ParametersJson, 80)}%",
-            AutomationSupportCatalog.ActionSetInputVolume => $"音量 · {AutomationActionParameterHelper.ReadInputVolumePercentage(step.ParametersJson, 50)}%",
             AutomationSupportCatalog.ActionSetInputDevice => $"输入音频 · {AutomationDisplayTextConverter.ToDisplayText(AutomationActionParameterHelper.ReadInputDeviceId(step.ParametersJson))}",
             AutomationSupportCatalog.ActionSetOutputDevice => $"输出设备 · {AutomationDisplayTextConverter.ToDisplayText(AutomationActionParameterHelper.ReadOutputDeviceId(step.ParametersJson))}",
             AutomationSupportCatalog.ActionSetPowerMode => $"电源模式 · {AutomationDisplayTextConverter.ToDisplayText(AutomationActionParameterHelper.ReadPowerModeDisplayName(step.ParametersJson))}",

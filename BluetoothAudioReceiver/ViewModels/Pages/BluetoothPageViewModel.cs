@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
 using BluetoothAudioReceiver.Contracts.Services;
 using BluetoothAudioReceiver.Contracts.ViewModels;
@@ -25,7 +25,6 @@ public partial class BluetoothPageViewModel : ObservableObject, INavigationAware
     private readonly ILocalSettingsService _localSettingsService;
     private readonly IAppSettingsService _appSettingsService;
     private readonly IAudioRouteHotkeyService _audioRouteHotkeyService;
-    private readonly InputAudioVolumeService _inputAudioVolumeService;
     private readonly LocalSettingsKeys _localSettingsKeys;
 
     private readonly Dictionary<string, DeviceChoice> _inputChoiceMap = new(StringComparer.OrdinalIgnoreCase);
@@ -41,9 +40,6 @@ public partial class BluetoothPageViewModel : ObservableObject, INavigationAware
     public partial bool IsScanning { get; set; }
 
     [ObservableProperty]
-    public partial int InputVolumeIndex { get; set; } = 3;
-
-    [ObservableProperty]
     public partial string BindingStatusText { get; set; } = string.Empty;
 
     public ObservableCollection<HotkeyBindingCard> HotkeyCards { get; } = [];
@@ -55,14 +51,12 @@ public partial class BluetoothPageViewModel : ObservableObject, INavigationAware
         ILocalSettingsService localSettingsService,
         IAppSettingsService appSettingsService,
         IAudioRouteHotkeyService audioRouteHotkeyService,
-        InputAudioVolumeService inputAudioVolumeService,
         LocalSettingsKeys localSettingsKeys)
     {
         _connectionService = connectionService;
         _localSettingsService = localSettingsService;
         _appSettingsService = appSettingsService;
         _audioRouteHotkeyService = audioRouteHotkeyService;
-        _inputAudioVolumeService = inputAudioVolumeService;
         _localSettingsKeys = localSettingsKeys;
 
         _connectionService.DeviceConnected += OnDeviceConnected;
@@ -70,7 +64,6 @@ public partial class BluetoothPageViewModel : ObservableObject, INavigationAware
 
     public async Task OnNavigatedToAsync(object parameter)
     {
-        InputVolumeIndex = _appSettingsService.InputVolumeIndex;
         NotificationEnabled = _appSettingsService.NotificationEnabled;
 
         await EnsureAllDevicesLoadedAsync();
@@ -89,12 +82,6 @@ public partial class BluetoothPageViewModel : ObservableObject, INavigationAware
     partial void OnNotificationEnabledChanged(bool value)
     {
         _appSettingsService.SetNotificationEnabledAsync(value).Forget(nameof(BluetoothPageViewModel));
-    }
-
-    partial void OnInputVolumeIndexChanged(int value)
-    {
-        _appSettingsService.SetInputVolumeIndexAsync(value).Forget(nameof(BluetoothPageViewModel));
-        _inputAudioVolumeService.ApplyVolumeAsync(value).Forget(nameof(BluetoothPageViewModel));
     }
 
     public static string NormalizeHotkey(string? hotkey)

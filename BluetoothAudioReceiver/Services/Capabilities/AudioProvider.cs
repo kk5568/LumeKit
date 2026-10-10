@@ -8,26 +8,21 @@ namespace BluetoothAudioReceiver.Services;
 internal sealed class AudioProvider : IAudioProvider
 {
     private readonly IAudioPlaybackConnectionService _connectionService;
-    private readonly IInputAudioVolumeService _inputAudioVolumeService;
     private readonly IAppSettingsService _appSettingsService;
     private readonly IAudioRouteHotkeyService _audioRouteHotkeyService;
     private readonly ILocalSettingsService _localSettingsService;
 
     public AudioProvider(
         IAudioPlaybackConnectionService connectionService,
-        IInputAudioVolumeService inputAudioVolumeService,
         IAppSettingsService appSettingsService,
         IAudioRouteHotkeyService audioRouteHotkeyService,
         ILocalSettingsService localSettingsService)
     {
         _connectionService = connectionService;
-        _inputAudioVolumeService = inputAudioVolumeService;
         _appSettingsService = appSettingsService;
         _audioRouteHotkeyService = audioRouteHotkeyService;
         _localSettingsService = localSettingsService;
     }
-
-    public int CurrentInputVolumeIndex => _appSettingsService.InputVolumeIndex;
 
     public async Task SetInputDeviceAsync(
         string deviceId,
@@ -66,12 +61,6 @@ internal sealed class AudioProvider : IAudioProvider
 
         await _appSettingsService.SetPreferredInputDeviceIdAsync(device.Id);
         await DevicePriorityHelper.MarkDeviceAsUsedAsync(_localSettingsService, device.Id);
-    }
-
-    public async Task SetInputVolumeAsync(int index, CancellationToken cancellationToken = default)
-    {
-        await _appSettingsService.SetInputVolumeIndexAsync(index);
-        await _inputAudioVolumeService.ApplyVolumeAsync(index);
     }
 
     public Task<string?> GetCurrentOutputDeviceIdAsync(CancellationToken cancellationToken = default)

@@ -149,9 +149,6 @@ public partial class App : Application
                 services.AddSingleton<ITouchpadControlService, TouchpadControlService>();
                 services.AddSingleton<ITouchpadProvider, TouchpadProvider>();
 
-                // Input audio volume control
-                services.AddSingleton<InputAudioVolumeService>();
-                services.AddSingleton<IInputAudioVolumeService>(sp => sp.GetRequiredService<InputAudioVolumeService>());
                 services.AddSingleton<IAudioProvider, AudioProvider>();
 
                 // Audio route and global hotkeys
@@ -179,7 +176,6 @@ public partial class App : Application
                 services.AddSingleton<IAutomationActionProvider, AutomationEnableTouchpadActionProvider>();
                 services.AddSingleton<IAutomationActionProvider, AutomationPowerModeActionProvider>();
                 services.AddSingleton<IAutomationActionProvider, AutomationBrightnessActionProvider>();
-                services.AddSingleton<IAutomationActionProvider, AutomationInputVolumeActionProvider>();
                 services.AddSingleton<IAutomationActionProvider, AutomationThemeActionProvider>();
                 services.AddSingleton<IAutomationActionProvider, AutomationProcessActionProvider>();
                 services.AddSingleton<IAutomationActionProvider, AutomationGHelperShortcutActionProvider>();
@@ -334,9 +330,6 @@ public partial class App : Application
             LocalSettingsHelper.ApplicationDataPath,
             brightnessSettings.AutoEnabled,
             Ioc.Default.GetRequiredService<IAppSettingsService>().AutoBrightnessOnForegroundEnabled);
-        TryWriteStartupTrace("App.ctor: before InputAudioVolumeService.ApplyCurrentVolumeAsync");
-        _ = Ioc.Default.GetRequiredService<InputAudioVolumeService>().ApplyCurrentVolumeAsync();
-        TryWriteStartupTrace("App.ctor: InputAudioVolumeService.ApplyCurrentVolumeAsync queued");
         TryWriteStartupTrace("App.ctor: before AppLanguageHelper.Initialize");
         AppLanguageHelper.Initialize();
         TryWriteStartupTrace("App.ctor: AppLanguageHelper.Initialize done");
@@ -679,7 +672,6 @@ public partial class App : Application
         DisposeService<AutoDayNightService>();
         DisposeService<IThemeSelectorService>();
         DisposeService<ScreenGammaColorTemperatureController>();
-        DisposeService<InputAudioVolumeService>();
         DisposeService<BluetoothRadioMonitorService>();
         DisposeService<AudioOutputDeviceWatcherService>();
         DisposeService<MonitorManager>();

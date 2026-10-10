@@ -22,7 +22,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
             Language = GetDataFromSettings(snapshot, _localSettingsKeys.LanguageKey, DefaultLanguage);
             Theme = GetDataFromSettings(snapshot, _localSettingsKeys.ThemeKey, DefaultTheme);
             BackdropType = GetDataFromSettings(snapshot, _localSettingsKeys.BackdropTypeKey, DefaultBackdropType);
-            InputVolumeIndex = Math.Clamp(GetDataFromSettings(snapshot, _localSettingsKeys.InputVolumeIndexKey, DefaultInputVolumeIndex), 0, 3);
             BatteryChargeLimit = NormalizeBatteryChargeLimit(GetDataFromSettings(snapshot, _localSettingsKeys.BatteryChargeLimitKey, DefaultBatteryChargeLimit));
             NotificationEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.NotificationEnabledKey, DefaultNotificationEnabled);
             AudioSwitchNotificationEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.AudioSwitchNotificationEnabledKey, DefaultAudioSwitchNotificationEnabled);
@@ -164,38 +163,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.BackdropTypeKey, type);
         BackdropType = type;
-    }
-
-    #endregion
-
-    #region InputVolumeIndex
-
-    private int inputVolumeIndex = DefaultInputVolumeIndex;
-    public int InputVolumeIndex
-    {
-        get => inputVolumeIndex;
-        private set
-        {
-            if (inputVolumeIndex != value)
-            {
-                inputVolumeIndex = value;
-            }
-        }
-    }
-
-    private const int DefaultInputVolumeIndex = 3;
-
-    private int GetInputVolumeIndex()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.InputVolumeIndexKey, DefaultInputVolumeIndex);
-        return Math.Clamp(data, 0, 3);
-    }
-
-    public async Task SetInputVolumeIndexAsync(int index)
-    {
-        var normalizedIndex = Math.Clamp(index, 0, 3);
-        await SaveDataInSettingsAsync(_localSettingsKeys.InputVolumeIndexKey, normalizedIndex);
-        InputVolumeIndex = normalizedIndex;
     }
 
     #endregion

@@ -8,6 +8,9 @@ namespace BluetoothAudioReceiver.Services;
 internal class AppNotificationService(INavigationService navigationService) : IAppNotificationService
 {
     private readonly INavigationService _navigationService = navigationService;
+    private AppNotificationManager? _manager;
+    private bool _handlerAttached;
+    private bool _registered;
 
     ~AppNotificationService()
     {
@@ -16,17 +19,47 @@ internal class AppNotificationService(INavigationService navigationService) : IA
 
     public void Initialize()
     {
+        AppNotificationManager? manager = null;
         try
         {
-            AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
-            AppNotificationManager.Default.Register();
+            manager = AppNotificationManager.Default;
+            _manager = manager;
+            manager.NotificationInvoked += OnNotificationInvoked;
+            _handlerAttached = true;
+            manager.Register();
+            _registered = true;
         }
         catch (Exception ex)
         {
-            AppNotificationManager.Default.NotificationInvoked -= OnNotificationInvoked;
+            // Never touch AppNotificationManager.Default in this catch: accessing that property is
+            // exactly what failed (for example 0x80070005 when the notification platform denies
+            // access), and doing it again here would replace the original error with a new one that
+            // escapes Initialize() and takes the whole app down.
+            DetachHandler(manager);
+            _manager = null;
+            _registered = false;
             Serilog.Log.ForContext("SourceContext", nameof(AppNotificationService))
-                .Warning(ex, "App notification registration failed");
+                .Warning(ex, "App notification registration failed; the app continues without notifications");
         }
+    }
+
+    private void DetachHandler(AppNotificationManager? manager)
+    {
+        if (!_handlerAttached || manager is null)
+        {
+            return;
+        }
+
+        try
+        {
+            manager.NotificationInvoked -= OnNotificationInvoked;
+        }
+        catch
+        {
+            // The notification platform may already be unavailable; nothing left to do here.
+        }
+
+        _handlerAttached = false;
     }
 
     // Handle notification invocations when your app is already running based on the notification arguments.
@@ -101,6 +134,30 @@ internal class AppNotificationService(INavigationService navigationService) : IA
 
     public void Unregister()
     {
-        AppNotificationManager.Default.Unregister();
+        // Also invoked from the finalizer, so it must never throw.
+        var manager = _manager;
+        _manager = null;
+        if (manager is null)
+        {
+            return;
+        }
+
+        try
+        {
+            DetachHandler(manager);
+            if (_registered)
+            {
+                manager.Unregister();
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.ForContext("SourceContext", nameof(AppNotificationService))
+                .Warning(ex, "App notification unregister failed");
+        }
+        finally
+        {
+            _registered = false;
+        }
     }
 }

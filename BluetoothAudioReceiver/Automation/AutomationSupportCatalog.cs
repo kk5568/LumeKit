@@ -18,7 +18,6 @@ public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerCha
     public const string ActionDisableTouchpad = "disable-touchpad";
     public const string ActionEnableTouchpad = "enable-touchpad";
     public const string ActionSetBrightness = "set-brightness";
-    public const string ActionSetInputVolume = "set-input-volume";
     public const string ActionSetInputDevice = "set-input-device";
     public const string ActionSetPowerMode = "set-power-mode";
     public const string ActionSetTheme = "set-theme";
@@ -58,7 +57,6 @@ public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerCha
             ActionDisableTouchpad,
             ActionEnableTouchpad,
             ActionSetBrightness,
-            ActionSetInputVolume,
             ActionSetInputDevice,
             ActionSetPowerMode,
             ActionSetTheme,

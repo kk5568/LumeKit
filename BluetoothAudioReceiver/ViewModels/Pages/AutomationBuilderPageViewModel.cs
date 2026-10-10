@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using BluetoothAudioReceiver.Automation;
 using BluetoothAudioReceiver.Automation.Models;
@@ -24,8 +24,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     private const string OutputDeviceExitText = "离开";
     private static readonly IReadOnlyList<string> EmptyParameterOptions = [NotConfiguredText];
     private static readonly IReadOnlyList<string> TouchpadToggleOptions = ["关闭", "开启"];
-    private static readonly IReadOnlyList<string> VolumeOptions =
-        ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"];
     private static readonly IReadOnlyList<string> _inputDeviceActionOptions = ["连接", "断开"];
     private static readonly IReadOnlyList<string> _performanceWindowModeOptions = ["全屏", "非全屏"];
     private static readonly IReadOnlyList<string> _performanceGpuComparisonOptions = ["大于", "小于"];
@@ -71,7 +69,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     private static readonly IReadOnlyList<string> EditorActionOptions =
     [
         "调整亮度",
-        "调整音量",
         "输入音频",
         "启动程序",
         "关闭程序",
@@ -104,7 +101,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["调整亮度"] = AutomationSupportCatalog.ActionSetBrightness,
-            ["调整音量"] = AutomationSupportCatalog.ActionSetInputVolume,
             ["输入音频"] = AutomationSupportCatalog.ActionSetInputDevice,
             ["启动程序"] = AutomationSupportCatalog.ActionProcessControl,
             ["关闭程序"] = AutomationSupportCatalog.ActionProcessControl,
@@ -125,7 +121,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         {
             ["电源状态"] = AutomationOptionCatalog.PowerStateOptions,
             ["调整亮度"] = AutomationOptionCatalog.BrightnessOptions,
-            ["调整音量"] = VolumeOptions,
             ["电源模式"] = AutomationOptionCatalog.GetPowerModeOptions(),
             ["深色模式"] = AutomationOptionCatalog.ThemeOptions,
             ["等待"] = AutomationOptionCatalog.WaitOptions,
@@ -1032,7 +1027,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             AutomationSupportCatalog.ActionDisableTouchpad => CreateActionNode("触摸板", "关闭"),
             AutomationSupportCatalog.ActionEnableTouchpad => CreateActionNode("触摸板", "开启"),
             AutomationSupportCatalog.ActionSetBrightness => CreateActionNode("调整亮度", NormalizeBrightnessLabel(step.ParametersJson)),
-            AutomationSupportCatalog.ActionSetInputVolume => CreateActionNode("调整音量", ResolveInputVolumeLabel(step.ParametersJson)),
             AutomationSupportCatalog.ActionSetTheme => CreateActionNode("深色模式", ResolveThemeLabel(step.ParametersJson)),
             AutomationSupportCatalog.ActionSendGHelperHotkey => CreateActionNode(GHelperActionTitle, GHelperShortcutCatalog.NormalizeSelectionText(AutomationActionParameterHelper.ReadValue(step.ParametersJson))),
             AutomationSupportCatalog.ActionSendWindowsHotkey => CreateActionNode(WindowsHotkeyActionTitle, WindowsShortcutCatalog.NormalizeSelectionText(AutomationActionParameterHelper.ReadValue(step.ParametersJson))),
@@ -1514,7 +1508,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         return AutomationDisplayTextConverter.ToDisplayText(node.Title) switch
         {
             "调整亮度" => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSetBrightness, ParametersJson = AutomationActionParameterHelper.BuildBrightness(int.Parse(ExtractDigits(node.Subtitle, "80"))) },
-            "调整音量" => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSetInputVolume, ParametersJson = AutomationActionParameterHelper.BuildInputVolume(int.Parse(ExtractDigits(node.Subtitle, "50"))) },
             "输入音频" => new AutomationStepDefinition
             {
                 ActionType = AutomationSupportCatalog.ActionSetInputDevice,
@@ -1680,9 +1673,6 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     {
         return $"{AutomationActionParameterHelper.ReadDelaySeconds(parameters, 3)} 秒";
     }
-
-    private static string ResolveInputVolumeLabel(string parameters)
-        => AutomationActionParameterHelper.ReadInputVolumePercentage(parameters, 50).ToString();
 
     private static string ResolveNotificationLabel(string parameters)
     {
@@ -1985,7 +1975,6 @@ public sealed class AutomationNode : ObservableObject
             return AutomationDisplayTextConverter.ToDisplayText(Title) switch
             {
                 "调整亮度" => AutomationParameterKind.Combo,
-                "调整音量" => AutomationParameterKind.Combo,
                 "打开网页" => AutomationParameterKind.Text,
                 "电源模式" => AutomationParameterKind.Combo,
                 "深色模式" => AutomationParameterKind.Combo,
