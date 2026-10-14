@@ -16,17 +16,17 @@ public sealed partial class AutomationHubPage : Page
         InitializeComponent();
     }
 
-    private void AutomationSettingsEntry_Click(object sender, RoutedEventArgs e)
+    private void CommonAutomationEntry_Click(object sender, RoutedEventArgs e)
     {
-        Frame.Navigate(typeof(AutomationBuilderPage));
+        Frame.Navigate(typeof(CommonAutomationHubPage));
     }
 
-    private void AutomationListEntry_Click(object sender, RoutedEventArgs e)
+    private void CustomAutomationEntry_Click(object sender, RoutedEventArgs e)
     {
-        Frame.Navigate(typeof(AutomationListPage));
+        Frame.Navigate(typeof(CustomAutomationHubPage));
     }
 
-    private void AutomationGameListEntry_Click(object sender, RoutedEventArgs e)
+    private void GameListEntry_Click(object sender, RoutedEventArgs e)
     {
         Frame.Navigate(typeof(AutomationGameListPage));
     }

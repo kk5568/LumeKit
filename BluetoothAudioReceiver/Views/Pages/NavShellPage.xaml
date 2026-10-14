@@ -37,53 +37,34 @@
             Canvas.ZIndex="0"
             DisplayModeChanged="NavigationViewControl_DisplayModeChanged"
             SelectionChanged="NavigationViewControl_SelectionChanged"
-            ExpandedModeThresholdWidth="1280"
-            PaneDisplayMode="LeftCompact"
-            IsPaneOpen="False"
+            CompactModeThresholdWidth="641"
+            ExpandedModeThresholdWidth="1000"
+            PaneDisplayMode="Auto"
+            IsPaneOpen="True"
             IsBackButtonVisible="Visible"
             IsBackEnabled="{x:Bind ViewModel.IsBackEnabled, Mode=OneWay}"
             IsSettingsVisible="True"
             Background="Transparent"
             SelectedItem="{x:Bind ViewModel.Selected, Mode=OneWay}">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="音频管理" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.BluetoothPageViewModel">
+                <NavigationViewItem Content="主页" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.HomePageViewModel">
                     <NavigationViewItem.Icon>
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE7F5;"/>
+                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE80F;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="快捷键管理" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.HotkeyNotificationPageViewModel">
-                    <NavigationViewItem.Icon>
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE765;"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="自动化管理" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.AutomationListPageViewModel">
+                <NavigationViewItem Content="自动化" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.AutomationHubPageViewModel">
                     <NavigationViewItem.Icon>
                         <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE9A4;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="通知设置" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.NotificationPageViewModel">
-                    <NavigationViewItem.Icon>
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE7F4;"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="程序清单" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.AutomationGameListPageViewModel">
-                    <NavigationViewItem.Icon>
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE8A5;"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="深色模式" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.ThemeManagementPageViewModel">
-                    <NavigationViewItem.Icon>
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE790;"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="自动亮度" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.AutoBrightnessPageViewModel">
-                    <NavigationViewItem.Icon>
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE706;"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="电量管理" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.BackgroundEfficiencyPageViewModel">
+                <NavigationViewItem Content="后台任务" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.BackgroundTasksHubPageViewModel">
                     <NavigationViewItem.Icon>
                         <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE8BE;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="其他设置" helpers:NavigationHelper.NavigateTo="BluetoothAudioReceiver.ViewModels.Pages.OtherSettingsHubPageViewModel">
+                    <NavigationViewItem.Icon>
+                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE912;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>

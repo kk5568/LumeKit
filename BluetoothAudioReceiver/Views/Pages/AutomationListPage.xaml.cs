@@ -1,4 +1,5 @@
 using BluetoothAudioReceiver.ViewModels.Pages;
+using BluetoothAudioReceiver.Views.Dialogs;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -46,17 +47,7 @@ public sealed partial class AutomationListPage : Page
             return;
         }
 
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "删除自动化",
-            Content = $"确认删除“{item.Name}”？",
-            PrimaryButtonText = "删除",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close
-        };
-
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        if (await AutomationCardDialogs.ConfirmDeleteAsync(XamlRoot, ActualTheme, item.Name))
         {
             await ViewModel.RemoveAsync(item);
         }

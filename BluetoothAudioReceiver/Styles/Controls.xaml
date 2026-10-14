@@ -146,4 +146,49 @@
         <Setter Property="Opacity" Value="0.9" />
     </Style>
 
+    <Style x:Key="HubItemButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="20,18" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="RootBorder"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                    <VisualStateManager.VisualStateGroups>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal" />
+                            <VisualState x:Name="PointerOver">
+                                <Storyboard>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="RootBorder" Storyboard.TargetProperty="Background">
+                                        <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+                                    </ObjectAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <Storyboard>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="RootBorder" Storyboard.TargetProperty="Background">
+                                        <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource CardBackgroundFillColorTertiaryBrush}" />
+                                    </ObjectAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </VisualState>
+                            <VisualState x:Name="Disabled" />
+                        </VisualStateGroup>
+                    </VisualStateManager.VisualStateGroups>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

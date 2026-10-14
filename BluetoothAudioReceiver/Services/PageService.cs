@@ -16,12 +16,14 @@ internal class PageService : IPageService
     public PageService()
     {
         // Main Window Pages
-        Configure<AudioNotificationHubPageViewModel, AudioNotificationHubPage>();
-        Configure<ThemeBrightnessHubPageViewModel, ThemeBrightnessHubPage>();
+        Configure<HomePageViewModel, HomePage>();
         Configure<AutomationHubPageViewModel, AutomationHubPage>();
+        Configure<CommonAutomationHubPageViewModel, CommonAutomationHubPage>();
+        Configure<CustomAutomationHubPageViewModel, CustomAutomationHubPage>();
         Configure<AutomationListPageViewModel, AutomationListPage>();
         Configure<AutomationGameListPageViewModel, AutomationGameListPage>();
-        Configure<EfficiencySettingsHubPageViewModel, EfficiencySettingsHubPage>();
+        Configure<BackgroundTasksHubPageViewModel, BackgroundTasksHubPage>();
+        Configure<OtherSettingsHubPageViewModel, OtherSettingsHubPage>();
         Configure<SettingsPageViewModel, SettingsPage>();
         Configure<AutomationBuilderPageViewModel, AutomationBuilderPage>();
         Configure<ThemeManagementPageViewModel, ThemeManagementPage>();

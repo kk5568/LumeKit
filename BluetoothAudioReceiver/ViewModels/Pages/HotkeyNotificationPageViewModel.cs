@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using BluetoothAudioReceiver.Contracts.Services;
 using Microsoft.UI.Xaml;
@@ -33,7 +35,7 @@ public partial class HotkeyNotificationPageViewModel : ObservableRecipient, INav
         _appSettingsService = appSettingsService;
         _audioRouteHotkeyService = audioRouteHotkeyService;
         _notificationService = notificationService;
-        HotkeyCards.CollectionChanged += (_, _) => UpdatePageState();
+        HotkeyCards.CollectionChanged += OnHotkeyCardsChanged;
     }
 
     public async Task OnNavigatedToAsync(object parameter)
@@ -160,6 +162,38 @@ public partial class HotkeyNotificationPageViewModel : ObservableRecipient, INav
         await SaveCardsAsync();
         UpdateLegacyCompatibilitySettings();
         UpdatePageState();
+        _audioRouteHotkeyService.RefreshNotificationHotkeys();
+    }
+
+    private void OnHotkeyCardsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (HotkeyNotificationCard card in e.OldItems)
+            {
+                card.PropertyChanged -= OnHotkeyCardPropertyChanged;
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (HotkeyNotificationCard card in e.NewItems)
+            {
+                card.PropertyChanged += OnHotkeyCardPropertyChanged;
+            }
+        }
+
+        UpdatePageState();
+    }
+
+    private async void OnHotkeyCardPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(HotkeyNotificationCard.IsEnabled))
+        {
+            return;
+        }
+
+        await SaveCardsAsync();
         _audioRouteHotkeyService.RefreshNotificationHotkeys();
     }
 

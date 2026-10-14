@@ -34,8 +34,25 @@ public sealed class DeskBoxFloatingHost : IDeskBoxFloatingService
         var normalizedRequest = Normalize(request);
         _dispatcherQueue.TryEnqueue(() =>
         {
-            ShowDeskBoxFloatingMenu(normalizedRequest);
+            // 通知类走独立浮窗。托盘面板和右键菜单暂时保留旧的 Flyout 实现，
+            // 等各自独立窗口完成后，删除这条分支和 ShowDeskBoxFloatingMenu 整套方法。
+            if (normalizedRequest.Kind == DeskBoxFloatingKind.Notification)
+            {
+                ShowDeskBoxFloatingWindow(normalizedRequest);
+            }
+            else
+            {
+                ShowDeskBoxFloatingMenu(normalizedRequest);
+            }
         });
+    }
+
+    private void ShowDeskBoxFloatingWindow(DeskBoxFloatingRequest request)
+    {
+        _menuHideTimer.Stop();
+        _previewMenu?.Hide();
+        _window ??= CreateWindow();
+        _window.Show(request);
     }
 
     public void Dismiss()

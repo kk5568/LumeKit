@@ -1,4 +1,24 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿<#
+    LumeKit 打包脚本：递增版本号 → dotnet publish → WiX 生成 MSI。
+
+    用法：
+      installer\Build-MSI.cmd                      双击/命令行直接打包
+      powershell -File installer\Build-MSI.ps1 -DryRun   只检查环境、版本号和路径，不发布、不打包、不改版本号
+
+    脚本内的关键约定：
+      · WiX 临时目录放在 %LOCALAPPDATA%\LumeKit\wix-temp，不放仓库里（仓库带沙箱 ACL 时 WiX 建 cab 会被拒）。
+      · 检测到工作区带沙箱访问限制时，自动调用 installer\Fix-SandboxAcl.ps1 去掉（可用 -SkipAclFix 跳过）。
+      · 构建失败会把 Directory.Build.props 的版本号按原字节回滚，不白占版本号。
+#>
+[CmdletBinding()]
+param(
+    # 只检查环境、版本号和路径，不发布、不打包、不改版本号文件。
+    [switch]$DryRun,
+    # 跳过「检查沙箱限制」阶段（默认检测到限制就自动修复）。
+    [switch]$SkipAclFix
+)
+
+$ErrorActionPreference = 'Stop'
 
 $installerRoot = $PSScriptRoot
 $projectRoot = Split-Path -Parent $installerRoot
@@ -8,7 +28,12 @@ $publishProfile = Join-Path $projectRoot 'BluetoothAudioReceiver\Properties\Publ
 $wixDll = Join-Path $projectRoot '.wix\.store\wix\6.0.2\wix\6.0.2\tools\net6.0\any\wix.dll'
 $wixSource = Join-Path $installerRoot 'Product.wxs'
 $outputRoot = Join-Path $installerRoot 'output'
-$wixTempRoot = Join-Path $installerRoot 'temp'
+# WiX 临时目录放到仓库外：仓库树带沙箱 ACL（Everyone DENY(DC)、沙箱 SID 无读权限、Low/Medium(NW) 标签）时，
+# WiX 的原生工具在仓库内初始化 cab 会被拒绝访问（build.log 里的 Error 0x80070005）。
+$wixTempRoot = Join-Path $env:LOCALAPPDATA 'LumeKit\wix-temp'
+# 旧版脚本把临时目录放在仓库里（installer\temp），留着做一次残留清理。
+$legacyWixTempRoot = Join-Path $installerRoot 'temp'
+$aclFixScript = Join-Path $installerRoot 'Fix-SandboxAcl.ps1'
 $publishDir = Join-Path $projectRoot 'BluetoothAudioReceiver\bin\Release\net10.0-windows10.0.22621.0\win-x64\publish'
 $logFile = Join-Path $outputRoot 'build.log'
 
@@ -31,6 +56,15 @@ function Write-Stage([string]$name) {
     Write-Host "$name..." -ForegroundColor Cyan
     Add-Log ''
     Add-Log "===== 阶段：$name ====="
+}
+
+function Test-SandboxAclRestriction([string]$Path) {
+    # 只读探测：沙箱留下的 ACL 与完整性标签，命中任何一条就算带限制。
+    $lines = & icacls $Path 2>&1
+    return @($lines | Where-Object {
+        $text = "$_"
+        ($text -match 'S-1-4-') -or ($text -match '\(DENY\)') -or ($text -match 'Mandatory Label\\Low') -or ($text -match 'CodexSandbox')
+    })
 }
 
 function Restore-VersionFile {
@@ -70,8 +104,11 @@ function Stop-Build([string]$stage, [string]$reason, [string]$details) {
     exit 1
 }
 
-New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
-[System.IO.File]::WriteAllText($logFile, '', $utf8NoBom)
+if (-not $DryRun) {
+    # -DryRun 只读检查，不建目录、不清日志。
+    New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+    [System.IO.File]::WriteAllText($logFile, '', $utf8NoBom)
+}
 $stage = '初始化'
 
 try {
@@ -133,15 +170,12 @@ try {
     if ($updatedPropsText -eq $propsText) {
         throw '没有找到可更新的版本节点。'
     }
-    # 按「原字节快照 + 原编码」写回：只改版本号，不额外加空行，也不改变 BOM。
-    $propsSnapshot = $propsBytes
-    [System.IO.File]::WriteAllText($propsFile, $updatedPropsText, (New-Object System.Text.UTF8Encoding($propsHasBom)))
-    $propsModified = $true
 
     # MSI 版本只接受 major.minor.build 三段，第三段上限 65535。
-    # 旧写法只用 YY.M.D，同一天打包两次版本号完全相同，升级时 Windows 会认为「没有更新」而不卸旧版。
-    # 把「当天第几次」并进第三段（5 号第 10 次 = 5010），保证每次打包的版本号都严格变大。
-    $msiBuildField = ($today.Day * 1000) + $buildNumber
+    # 第三段编码「当天第几分钟」：日 * 1440 + 时 * 60 + 分（最大 31*1440+1439 = 46079，不超上限）。
+    # 只用墙上时间，版本号必然随时间变大；不再用「当天第几次打包」这种各副本各数各的计数器——
+    # 那种算法下，两个共用 UpgradeCode 的副本会互相挡：计数多的版本更大，另一个的新包反被当降级拒绝。
+    $msiBuildField = ($today.Day * 1440) + ($today.Hour * 60) + $today.Minute
     if ($msiBuildField -gt 65535) {
         throw "MSI 版本第三段超过上限 65535：$msiBuildField。"
     }
@@ -149,9 +183,73 @@ try {
     $msiName = "LumeKit-$appVersion-x64.msi"
     $msiPath = Join-Path $outputRoot $msiName
 
+    if ($DryRun) {
+        $dryRunRestrictions = Test-SandboxAclRestriction $projectRoot
+        $restrictionText = '没有'
+        if ($dryRunRestrictions.Count -gt 0) { $restrictionText = "有 $($dryRunRestrictions.Count) 条，打包时会自动修复" }
+        Write-Host ''
+        Write-Host '================================' -ForegroundColor Cyan
+        Write-Host ' -DryRun：只检查，不发布、不打包、不改版本号' -ForegroundColor Cyan
+        Write-Host '================================' -ForegroundColor Cyan
+        Write-Host "项目文件：$projectFile"
+        Write-Host "版本号文件：$propsFile"
+        Write-Host "当前版本：$currentVersion"
+        Write-Host "本次会用：$appVersion（MSI 版本 $msiVersion）"
+        Write-Host "MSI 输出：$msiPath"
+        Write-Host "发布目录：$publishDir"
+        Write-Host "WiX 临时目录：$wixTempRoot"
+        Write-Host "沙箱访问限制：$restrictionText"
+        Write-Host ''
+        Write-Host '确认无误后重跑本脚本（不带 -DryRun）即可打包。' -ForegroundColor Cyan
+        exit 0
+    }
+
+    # 按「原字节快照 + 原编码」写回：只改版本号，不额外加空行，也不改变 BOM。
+    $propsSnapshot = $propsBytes
+    [System.IO.File]::WriteAllText($propsFile, $updatedPropsText, (New-Object System.Text.UTF8Encoding($propsHasBom)))
+    $propsModified = $true
+
     Write-Stage '检查环境'
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
         throw '找不到 dotnet。'
+    }
+
+    Write-Stage '检查沙箱限制'
+    if ($SkipAclFix) {
+        Write-Host '已用 -SkipAclFix 跳过。' -ForegroundColor Yellow
+    }
+    else {
+        $restrictions = Test-SandboxAclRestriction $projectRoot
+        if ($restrictions.Count -eq 0) {
+            Write-Host '工作区没有沙箱访问限制。' -ForegroundColor Green
+        }
+        else {
+            Write-Host '检测到工作区带沙箱访问限制：' -ForegroundColor Yellow
+            $restrictions | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkYellow }
+            Add-Log '检测到工作区带沙箱访问限制：'
+            $restrictions | ForEach-Object { Add-Log "  $_" }
+            if (-not (Test-Path $aclFixScript)) {
+                throw "工作区带沙箱限制，但找不到修复脚本：$aclFixScript"
+            }
+            Write-Host '正在调用 Fix-SandboxAcl.ps1 去掉限制...' -ForegroundColor Yellow
+            $previousAclPreference = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $aclFixScript -Path $projectRoot *>&1 |
+                ForEach-Object { $line = "$_"; Write-Host $line; Add-Log $line }
+            $aclFixExitCode = $LASTEXITCODE
+            $ErrorActionPreference = $previousAclPreference
+            if ($aclFixExitCode -ne 0) {
+                throw "去沙箱限制失败（退出码 $aclFixExitCode）。请先用「以管理员身份运行」的 PowerShell 跑一次：$aclFixScript"
+            }
+            $restrictions = Test-SandboxAclRestriction $projectRoot
+            if ($restrictions.Count -gt 0) {
+                Write-Host '沙箱限制仍然存在，继续尝试打包。' -ForegroundColor Yellow
+                Add-Log '沙箱限制仍然存在，继续尝试打包。'
+            }
+            else {
+                Write-Host '沙箱限制已清除。' -ForegroundColor Green
+            }
+        }
     }
 
     Write-Stage '清理旧输出'
@@ -159,6 +257,16 @@ try {
     # 本次要产出的那个（$msiPath）即使已存在也不单独删，交给 WiX 的 -o 直接覆盖。
     if (Test-Path $publishDir) {
         Remove-Item $publishDir -Recurse -Force
+    }
+    # 旧版脚本把 WiX 临时目录放在仓库里，失败时残留随机目录和 cab（可上百 MB），整棵删掉。
+    if (Test-Path $legacyWixTempRoot) {
+        Remove-Item $legacyWixTempRoot -Recurse -Force
+    }
+
+    # 同一分钟再打一次会得到完全相同的 MSI 版本号，装上去 Windows 会认为「版本没变」而不升级。
+    # 与其产出一个装不上去的包，不如直接拦下来。
+    if (Test-Path $msiPath) {
+        throw "同一分钟内已经有同名安装包：$msiPath。等一分钟再打包，或先删掉它。"
     }
 
     Write-Stage '程序发布'
@@ -179,6 +287,8 @@ try {
     New-Item -ItemType Directory -Path $wixTempRoot -Force | Out-Null
     $env:TEMP = $wixTempRoot
     $env:TMP = $wixTempRoot
+    Write-Host "WiX 临时目录：$wixTempRoot"
+    Add-Log "WiX 临时目录：$wixTempRoot"
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
 
@@ -209,6 +319,14 @@ try {
         throw "WiX 没有生成预期的 MSI：$msiPath"
     }
     $buildSucceeded = $true
+
+    # 打包成功后清掉本次 WiX 临时目录（每次约 90 MB），别让 %LOCALAPPDATA% 越堆越大。
+    # 失败时保留，方便排查 cab 相关问题。
+    if (($env:TEMP -eq $wixTempRoot) -or ($env:TMP -eq $wixTempRoot)) {
+        Remove-Item $wixTempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "已清理 WiX 临时目录：$wixTempRoot"
+        Add-Log "已清理 WiX 临时目录：$wixTempRoot"
+    }
 
     $msiInfo = Get-Item $msiPath
     Write-Host ''

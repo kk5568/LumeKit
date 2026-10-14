@@ -10,6 +10,7 @@
             <SolidColorBrush x:Key="DeskBoxFloatingTextBrush" Color="#1A1A1A" />
             <SolidColorBrush x:Key="DeskBoxFloatingSecondaryTextBrush" Color="#5A5A5A" />
             <SolidColorBrush x:Key="DeskBoxFloatingStrokeBrush" Color="#24000000" />
+            <SolidColorBrush x:Key="DeskBoxFloatingDividerBrush" Color="#0A000000" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <SolidColorBrush x:Key="WidgetOverlaySurfaceBrush" Color="#2A3038" />
@@ -18,6 +19,7 @@
             <SolidColorBrush x:Key="DeskBoxFloatingTextBrush" Color="#F5F5F5" />
             <SolidColorBrush x:Key="DeskBoxFloatingSecondaryTextBrush" Color="#A5A5A5" />
             <SolidColorBrush x:Key="DeskBoxFloatingStrokeBrush" Color="#52FFFFFF" />
+            <SolidColorBrush x:Key="DeskBoxFloatingDividerBrush" Color="#10FFFFFF" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

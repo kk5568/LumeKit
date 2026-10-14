@@ -1,6 +1,7 @@
 using BluetoothAudioReceiver.DeskBoxFloating.Helpers;
 using BluetoothAudioReceiver.DeskBoxFloating.Models;
 using BluetoothAudioReceiver.DeskBoxFloating.Profiles;
+using BluetoothAudioReceiver.DeskBoxFloating.Services;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -19,7 +20,6 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
     private int _windowHeight = 54;
     private int _hideRevision;
     private DeskBoxFloatingLayoutProfile _profile = DeskBoxFloatingProfiles.NotificationDefault;
-    private readonly DeskBoxFloatingMaterialController _materialController = new();
     private readonly DeskBoxFloatingTransitionHelper _transitionHelper;
 
     public event EventHandler? Dismissed;
@@ -42,7 +42,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         DeskBoxFloatingWin32Helper.ConfigureWindow(this.GetWindowHandle());
         ApplyMaterial();
         _hideTimer.Tick += OnHideTimerTick;
-        Closed += (_, _) => _materialController.Dispose();
+        Closed += (_, _) => DisposeBackdropControllers();
     }
 
     public void Show(DeskBoxFloatingRequest request)
@@ -152,21 +152,52 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         AppWindow.Move(ClampToWorkArea(point, workArea, _windowWidth, _windowHeight));
     }
 
+    /// <summary>
+    /// DeskBox WidgetWindowBase.ApplyBackdropPreference: 窗口级材质路径，
+    /// 直接挂 Mica/Acrylic 控制器（不用 popover 版 WidgetMaterialSystemBackdrop），
+    /// 配置里 IsInputActive 恒为 true，所以失焦也保持同一种材质。
+    /// </summary>
     private void ApplyMaterial()
     {
         try
         {
-            var theme = App.MainWindow.Content is FrameworkElement element
+            var appTheme = App.MainWindow.Content is FrameworkElement element
                 ? element.ActualTheme
                 : ElementTheme.Default;
-            _materialController.Apply(
-                this,
-                RootContainer,
-                theme == ElementTheme.Dark);
+            RootContainer.RequestedTheme = appTheme;
+            ApplyBackdropPreference();
         }
         catch
         {
             SystemBackdrop ??= new MicaBackdrop();
+        }
+    }
+
+    private static Windows.UI.Color ResolveAccentColor()
+    {
+        try
+        {
+            return new Windows.UI.ViewManagement.UISettings()
+                .GetColorValue(Windows.UI.ViewManagement.UIColorType.Accent);
+        }
+        catch
+        {
+            return AccentColorHelper.DefaultAccentColor;
+        }
+    }
+
+    private static double GetResourceDouble(string key, double fallback)
+    {
+        try
+        {
+            return Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue(key, out var value) &&
+                value is double number
+                    ? number
+                    : fallback;
+        }
+        catch
+        {
+            return fallback;
         }
     }
 

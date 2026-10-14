@@ -21,7 +21,7 @@ namespace BluetoothAudioReceiver;
 
 public partial class App : Application
 {
-    private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(App));
+    private static readonly ILogger _log = Serilog.Log.ForContext("SourceContext", nameof(App));
     private static readonly string StartupTraceLogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "BluetoothAudioReceiver",
@@ -80,7 +80,7 @@ public partial class App : Application
         var configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
             .Build();
-        Log.Logger = new LoggerConfiguration()
+        Serilog.Log.Logger = new LoggerConfiguration()
             .ReadFrom.Configuration(configuration)
             .CreateLogger();
 #endif
@@ -275,26 +275,30 @@ public partial class App : Application
                 // Main Window Pages
                 services.AddTransient<NavShellPageViewModel>();
                 services.AddTransient<NavShellPage>();
-                services.AddTransient<AudioNotificationHubPageViewModel>();
-                services.AddTransient<AudioNotificationHubPage>();
-                services.AddTransient<ThemeBrightnessHubPageViewModel>();
-                services.AddTransient<ThemeBrightnessHubPage>();
+                services.AddTransient<HomePageViewModel>();
+                services.AddTransient<HomePage>();
                 services.AddTransient<AutomationHubPageViewModel>();
                 services.AddTransient<AutomationHubPage>();
-                services.AddTransient<AutomationListPageViewModel>();
+                services.AddTransient<CommonAutomationHubPageViewModel>();
+                services.AddTransient<CommonAutomationHubPage>();
+                services.AddTransient<CustomAutomationHubPageViewModel>();
+                services.AddTransient<CustomAutomationHubPage>();
+                services.AddSingleton<AutomationListPageViewModel>();
                 services.AddTransient<AutomationListPage>();
                 services.AddTransient<AutomationGameListPageViewModel>();
                 services.AddTransient<AutomationGameListPage>();
                 services.AddTransient<AutomationEditorPage>();
                 services.AddTransient<AutomationBuilderPageViewModel>();
                 services.AddTransient<AutomationBuilderPage>();
-                services.AddTransient<EfficiencySettingsHubPageViewModel>();
-                services.AddTransient<EfficiencySettingsHubPage>();
+                services.AddTransient<BackgroundTasksHubPageViewModel>();
+                services.AddTransient<BackgroundTasksHubPage>();
+                services.AddTransient<OtherSettingsHubPageViewModel>();
+                services.AddTransient<OtherSettingsHubPage>();
                 services.AddTransient<SettingsPageViewModel>();
                 services.AddTransient<SettingsPage>();
                 services.AddSingleton<ThemeManagementPageViewModel>();
                 services.AddTransient<ThemeManagementPage>();
-                services.AddTransient<BluetoothPageViewModel>();
+                services.AddSingleton<BluetoothPageViewModel>();
                 services.AddTransient<BluetoothPage>();
                 services.AddTransient<AutoBrightnessPageViewModel>();
                 services.AddTransient<AutoBrightnessPage>();
@@ -302,7 +306,7 @@ public partial class App : Application
                 services.AddTransient<BackgroundEfficiencyPage>();
                 services.AddTransient<NotificationPageViewModel>();
                 services.AddTransient<NotificationPage>();
-                services.AddTransient<HotkeyNotificationPageViewModel>();
+                services.AddSingleton<HotkeyNotificationPageViewModel>();
                 services.AddTransient<HotkeyNotificationPage>();
 
                 #endregion
@@ -541,7 +545,7 @@ public partial class App : Application
         _log.Fatal(ex, $"An unhandled error occurred : {exceptionString}");
 
         // Close the log
-        Log.CloseAndFlush();
+        Serilog.Log.CloseAndFlush();
 
         // Try to show a notification
         if (showToastNotification)
@@ -690,7 +694,7 @@ public partial class App : Application
         }
 
         // Flush and close log
-        Log.CloseAndFlush();
+        Serilog.Log.CloseAndFlush();
 
         Current.Exit();
     }
@@ -738,7 +742,7 @@ public partial class App : Application
             }
 
             // Close the log
-            Log.CloseAndFlush();
+            Serilog.Log.CloseAndFlush();
 
             // Kill the current process
             Process.GetCurrentProcess().Kill();

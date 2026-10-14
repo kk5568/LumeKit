@@ -49,13 +49,11 @@ internal class NavigationViewService(IPageService pageService) : INavigationView
         }
         else
         {
-            foreach (var item in MenuItems.Concat(FooterMenuItems).OfType<NavigationViewItem>())
+            var item = FindMenuItem(
+                item => NavigationHelper.GetNavigateTo(item) is string pageKey && pageKey == navigateTo);
+            if (item != null)
             {
-                if (NavigationHelper.GetNavigateTo(item) is string pageKey && pageKey == navigateTo)
-                {
-                    _navigationView.SelectedItem = item;
-                    break;
-                }
+                _navigationView.SelectedItem = item;
             }
         }
         _navigationView.ItemInvoked += OnItemInvoked;
@@ -70,13 +68,39 @@ internal class NavigationViewService(IPageService pageService) : INavigationView
                 return _navigationView.SettingsItem as NavigationViewItem;
             }
 
-            foreach (var item in MenuItems.Concat(FooterMenuItems).OfType<NavigationViewItem>())
+            return FindMenuItem(
+                item => NavigationHelper.GetNavigateTo(item) is string pageKey &&
+                        _pageService.GetPageType(pageKey) == pageType);
+        }
+
+        return null;
+    }
+
+    private NavigationViewItem? FindMenuItem(Func<NavigationViewItem, bool> matches)
+    {
+        return FindMenuItem(MenuItems.Concat(FooterMenuItems), matches);
+    }
+
+    private static NavigationViewItem? FindMenuItem(IEnumerable<object> items, Func<NavigationViewItem, bool> matches)
+    {
+        foreach (var item in items)
+        {
+            if (item is not NavigationViewItem navigationViewItem)
             {
-                if (NavigationHelper.GetNavigateTo(item) is string pageKey &&
-                    _pageService.GetPageType(pageKey) == pageType)
-                {
-                    return item;
-                }
+                continue;
+            }
+
+            if (matches(navigationViewItem))
+            {
+                return navigationViewItem;
+            }
+
+            var child = FindMenuItem(navigationViewItem.MenuItems, matches);
+            if (child != null)
+            {
+                // 二级菜单默认收起，选中子项时把父级展开，保证高亮可见。
+                navigationViewItem.IsExpanded = true;
+                return child;
             }
         }
 

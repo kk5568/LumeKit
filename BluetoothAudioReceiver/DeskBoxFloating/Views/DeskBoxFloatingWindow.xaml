@@ -21,12 +21,13 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
+            <!-- Visuals are resolved in code by ApplySurfaceStyle, matching DeskBox
+                 WidgetShell.xaml: the plate only paints in Solid mode; every other
+                 material leaves it transparent so the system backdrop shows through. -->
             <Border x:Name="BackgroundPlate"
                     Grid.RowSpan="2"
-                    Background="{ThemeResource DeskBoxFloatingSurfaceBrush}"
-                    BorderBrush="{ThemeResource DeskBoxFloatingStrokeBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{StaticResource DeskBoxFloatingCornerRadius}" />
+                    BorderThickness="0"
+                    CornerRadius="0" />
 
             <Grid x:Name="TitleBarGrid"
                   Grid.Row="0"
@@ -76,10 +77,10 @@
             <Border x:Name="HeaderDivider"
                     Grid.Row="0"
                     Height="1"
-                    Margin="12,0,12,0"
-                    Opacity="0.45"
+                    Margin="12,0,12,4"
+                    Opacity="0.62"
                     VerticalAlignment="Bottom"
-                    Background="{ThemeResource DeskBoxFloatingStrokeBrush}" />
+                    Background="{ThemeResource DeskBoxFloatingDividerBrush}" />
 
             <Grid x:Name="ContentTransitionViewport"
                   Grid.Row="1"
