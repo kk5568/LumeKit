@@ -8,6 +8,7 @@
     脚本内的关键约定：
       · WiX 临时目录放在 %LOCALAPPDATA%\LumeKit\wix-temp，不放仓库里（仓库带沙箱 ACL 时 WiX 建 cab 会被拒）。
       · 检测到工作区带沙箱访问限制时，自动调用 installer\Fix-SandboxAcl.ps1 去掉（可用 -SkipAclFix 跳过）。
+      · 仓库里不带 WiX 工具（.wix/ 在 .gitignore 里）：本地找不到就按固定版本就地装一份（需要联网，仅第一次）。
       · 构建失败会把 Directory.Build.props 的版本号按原字节回滚，不白占版本号。
 #>
 [CmdletBinding()]
@@ -25,7 +26,11 @@ $projectRoot = Split-Path -Parent $installerRoot
 $projectFile = Join-Path $projectRoot 'BluetoothAudioReceiver\BluetoothAudioReceiver.csproj'
 $propsFile = Join-Path $projectRoot 'Directory.Build.props'
 $publishProfile = Join-Path $projectRoot 'BluetoothAudioReceiver\Properties\PublishProfiles\win-x64.pubxml'
-$wixDll = Join-Path $projectRoot '.wix\.store\wix\6.0.2\wix\6.0.2\tools\net6.0\any\wix.dll'
+# WiX 工具版本固定在这里。仓库不提交 .wix/（.gitignore 排除），缺了就按这个版本就地装一份，
+# 所以克隆下来不用先手工准备工具也能一键打包。
+$wixVersion = '6.0.2'
+$wixToolPath = Join-Path $projectRoot '.wix'
+$wixDll = Join-Path $wixToolPath ".store\wix\$wixVersion\wix\$wixVersion\tools\net6.0\any\wix.dll"
 $wixSource = Join-Path $installerRoot 'Product.wxs'
 $outputRoot = Join-Path $installerRoot 'output'
 # WiX 临时目录放到仓库外：仓库树带沙箱 ACL（Everyone DENY(DC)、沙箱 SID 无读权限、Low/Medium(NW) 标签）时，
@@ -48,6 +53,11 @@ $requiredWixExtensions = @('WixToolset.Util.wixext')
 
 function Add-Log([string]$text) {
     if ($null -eq $text) { $text = '' }
+    # -DryRun 不预建 output 目录，出错写日志时不能直接 AppendAllText，否则目录不存在会盖掉真正的错误。
+    $logDirectory = Split-Path -Parent $logFile
+    if (-not (Test-Path $logDirectory)) {
+        New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+    }
     [System.IO.File]::AppendAllText($logFile, "$text`r`n", $utf8NoBom)
 }
 
@@ -122,7 +132,24 @@ try {
         throw "找不到版本配置：$propsFile"
     }
     if (-not (Test-Path $wixDll)) {
-        throw "找不到仓库内 WiX 工具：$wixDll"
+        # 仓库不带 WiX 工具，就地按固定版本装一份（需要联网，仅第一次）。
+        if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+            throw "仓库内没有 WiX 工具（$wixDll），且找不到 dotnet，无法自动安装。请先安装 .NET SDK。"
+        }
+        Write-Host "仓库内没有 WiX 工具，正在安装 WiX $wixVersion（需要联网，仅第一次）..." -ForegroundColor Yellow
+        $previousInstallPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & dotnet tool install wix --version $wixVersion --tool-path $wixToolPath *>&1 |
+            ForEach-Object { $line = "$_"; Write-Host $line; Add-Log $line }
+        $wixInstallExitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousInstallPreference
+        if ($wixInstallExitCode -ne 0) {
+            throw "WiX 工具安装失败（退出码 $wixInstallExitCode）。请手动执行：dotnet tool install wix --version $wixVersion --tool-path `"$wixToolPath`""
+        }
+        if (-not (Test-Path $wixDll)) {
+            throw "安装后仍找不到 WiX 工具：$wixDll"
+        }
+        Write-Host "WiX 工具已装好：$wixDll" -ForegroundColor Green
     }
 
     # 读原始字节：既用于解析，也留作失败回滚的快照，同时记住原文件带不带 BOM。

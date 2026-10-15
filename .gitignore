@@ -118,3 +118,8 @@ installer/output/
 # Local tree snapshots produced by tooling: full copies, never published.
 .snapshots/
 
+# Secrets written out by tooling when a token is pasted into the workspace: never publish.
+github_pat.txt
+*_pat.txt
+*_token.txt
+
