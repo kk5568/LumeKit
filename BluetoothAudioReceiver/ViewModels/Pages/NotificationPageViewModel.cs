@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using BluetoothAudioReceiver.Contracts.Services;
 using BluetoothAudioReceiver.DeskBoxFloating.Models;
@@ -59,7 +59,24 @@ public partial class NotificationPageViewModel : ObservableRecipient, INavigatio
     public partial string DeskBoxFloatingPreviewType { get; set; } = "通知";
 
     public IReadOnlyList<string> DeskBoxFloatingPreviewTypeOptions { get; } =
-        ["通知", "紧凑通知", "自动化通知", "合并通知", "快捷键通知", "托盘面板", "右键菜单"];
+        ["通知", "快捷键通知", "托盘面板", "右键菜单"];
+
+    [ObservableProperty]
+    public partial string DeskBoxFloatingAnimationTier { get; set; } =
+        DeskBoxFloatingAnimationTiers.Standard;
+
+    public IReadOnlyList<string> DeskBoxFloatingAnimationTierOptions { get; } =
+        DeskBoxFloatingAnimationTiers.All;
+
+    [ObservableProperty]
+    public partial bool DeskBoxFloatingUnifiedLayout { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string DeskBoxFloatingMaterialType { get; set; } =
+        DeskBoxFloatingMaterialTypes.ToDisplay(DeskBoxFloatingMaterialTypes.Mica);
+
+    public IReadOnlyList<string> DeskBoxFloatingMaterialTypeOptions { get; } =
+        DeskBoxFloatingMaterialTypes.All;
 
     public NotificationPageViewModel(
         IAppSettingsService appSettingsService,
@@ -104,29 +121,6 @@ public partial class NotificationPageViewModel : ObservableRecipient, INavigatio
                 AutoDismissOverride = true,
                 DurationMilliseconds = duration
             },
-            "紧凑通知" => new DeskBoxFloatingRequest
-            {
-                ProfileId = "Notification.Compact",
-                Title = "紧凑通知",
-                Status = "已触发",
-                DurationMilliseconds = duration
-            },
-            "自动化通知" => new DeskBoxFloatingRequest
-            {
-                ProfileId = "Notification.Automation",
-                Title = "自动化已执行",
-                Description = "切换音频设备并调整系统音量",
-                Items = ["步骤 1：选择蓝牙耳机", "步骤 2：音量设置为 60%"],
-                DurationMilliseconds = duration
-            },
-            "合并通知" => new DeskBoxFloatingRequest
-            {
-                ProfileId = "Notification.Merged",
-                Title = "状态更新",
-                Status = "3 项",
-                Items = ["蓝牙设备已连接", "音频输出已切换", "通知设置已保存"],
-                DurationMilliseconds = duration
-            },
             "快捷键通知" => new DeskBoxFloatingRequest
             {
                 ProfileId = "Notification.Hotkey",
@@ -160,6 +154,10 @@ public partial class NotificationPageViewModel : ObservableRecipient, INavigatio
         HideNotificationWhenTrayPopupVisible = _appSettingsService.HideNotificationWhenTrayPopupVisible;
         DeskBoxFloatingTestDuration = FormatDeskBoxFloatingDuration(
             _appSettingsService.DeskBoxFloatingTestDurationMilliseconds);
+        DeskBoxFloatingAnimationTier = _appSettingsService.DeskBoxFloatingAnimationTier;
+        DeskBoxFloatingUnifiedLayout = _appSettingsService.DeskBoxFloatingUnifiedLayout;
+        DeskBoxFloatingMaterialType = DeskBoxFloatingMaterialTypes.ToDisplay(
+            _appSettingsService.DeskBoxFloatingMaterialType);
         return Task.CompletedTask;
     }
 
@@ -229,6 +227,24 @@ public partial class NotificationPageViewModel : ObservableRecipient, INavigatio
     {
         _appSettingsService.SetDeskBoxFloatingTestDurationMillisecondsAsync(
             ParseDeskBoxFloatingDuration(value)).Forget(nameof(NotificationPageViewModel));
+    }
+
+    partial void OnDeskBoxFloatingAnimationTierChanged(string value)
+    {
+        _appSettingsService.SetDeskBoxFloatingAnimationTierAsync(value)
+            .Forget(nameof(NotificationPageViewModel));
+    }
+
+    partial void OnDeskBoxFloatingUnifiedLayoutChanged(bool value)
+    {
+        _appSettingsService.SetDeskBoxFloatingUnifiedLayoutAsync(value)
+            .Forget(nameof(NotificationPageViewModel));
+    }
+
+    partial void OnDeskBoxFloatingMaterialTypeChanged(string value)
+    {
+        _appSettingsService.SetDeskBoxFloatingMaterialTypeAsync(
+            DeskBoxFloatingMaterialTypes.FromDisplay(value)).Forget(nameof(NotificationPageViewModel));
     }
 
     private static int ParseDeskBoxFloatingDuration(string value)

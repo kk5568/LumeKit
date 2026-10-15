@@ -38,6 +38,20 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
                     snapshot,
                     _localSettingsKeys.DeskBoxFloatingTestDurationMillisecondsKey,
                     DefaultDeskBoxFloatingTestDurationMilliseconds));
+            DeskBoxFloatingAnimationTier = DeskBoxFloating.Models.DeskBoxFloatingAnimationTiers.Normalize(
+                GetDataFromSettings(
+                    snapshot,
+                    _localSettingsKeys.DeskBoxFloatingAnimationTierKey,
+                    DefaultDeskBoxFloatingAnimationTier));
+            DeskBoxFloatingUnifiedLayout = GetDataFromSettings(
+                snapshot,
+                _localSettingsKeys.DeskBoxFloatingUnifiedLayoutKey,
+                DefaultDeskBoxFloatingUnifiedLayout);
+            DeskBoxFloatingMaterialType = DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.Normalize(
+                GetDataFromSettings(
+                    snapshot,
+                    _localSettingsKeys.DeskBoxFloatingMaterialTypeKey,
+                    DefaultDeskBoxFloatingMaterialType));
             PreferredInputDeviceId = GetDataFromSettings(snapshot, _localSettingsKeys.PreferredInputDeviceIdKey, DefaultPreferredInputDeviceId);
             PreferredOutputDeviceId = GetDataFromSettings(snapshot, _localSettingsKeys.PreferredOutputDeviceIdKey, DefaultPreferredOutputDeviceId);
             InputHotkey = GetDataFromSettings(snapshot, _localSettingsKeys.InputHotkeyKey, DefaultInputHotkey);
@@ -471,6 +485,65 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private static int NormalizeDeskBoxFloatingTestDurationMilliseconds(int milliseconds)
         => milliseconds is 5000 or 10000 ? milliseconds : DefaultDeskBoxFloatingTestDurationMilliseconds;
+
+    private string deskBoxFloatingAnimationTier = DefaultDeskBoxFloatingAnimationTier;
+    public string DeskBoxFloatingAnimationTier
+    {
+        get => deskBoxFloatingAnimationTier;
+        private set
+        {
+            deskBoxFloatingAnimationTier = DeskBoxFloating.Models.DeskBoxFloatingAnimationTiers.Normalize(value);
+            DeskBoxFloating.Models.AppSettings.Current.TrayAnimationTier = deskBoxFloatingAnimationTier;
+        }
+    }
+
+    private const string DefaultDeskBoxFloatingAnimationTier = DeskBoxFloating.Models.DeskBoxFloatingAnimationTiers.Standard;
+
+    public async Task SetDeskBoxFloatingAnimationTierAsync(string tier)
+    {
+        var normalized = DeskBoxFloating.Models.DeskBoxFloatingAnimationTiers.Normalize(tier);
+        await SaveDataInSettingsAsync(_localSettingsKeys.DeskBoxFloatingAnimationTierKey, normalized);
+        DeskBoxFloatingAnimationTier = normalized;
+    }
+
+    private bool deskBoxFloatingUnifiedLayout = DefaultDeskBoxFloatingUnifiedLayout;
+    public bool DeskBoxFloatingUnifiedLayout
+    {
+        get => deskBoxFloatingUnifiedLayout;
+        private set
+        {
+            deskBoxFloatingUnifiedLayout = value;
+            DeskBoxFloating.Models.AppSettings.Current.TrayUnifiedLayout = value;
+        }
+    }
+
+    private const bool DefaultDeskBoxFloatingUnifiedLayout = true;
+
+    public async Task SetDeskBoxFloatingUnifiedLayoutAsync(bool enabled)
+    {
+        await SaveDataInSettingsAsync(_localSettingsKeys.DeskBoxFloatingUnifiedLayoutKey, enabled);
+        DeskBoxFloatingUnifiedLayout = enabled;
+    }
+
+    private string deskBoxFloatingMaterialType = DefaultDeskBoxFloatingMaterialType;
+    public string DeskBoxFloatingMaterialType
+    {
+        get => deskBoxFloatingMaterialType;
+        private set
+        {
+            deskBoxFloatingMaterialType = DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.Normalize(value);
+            DeskBoxFloating.Models.AppSettings.Current.TrayMaterialType = deskBoxFloatingMaterialType;
+        }
+    }
+
+    private const string DefaultDeskBoxFloatingMaterialType = DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.Mica;
+
+    public async Task SetDeskBoxFloatingMaterialTypeAsync(string materialType)
+    {
+        var normalized = DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.Normalize(materialType);
+        await SaveDataInSettingsAsync(_localSettingsKeys.DeskBoxFloatingMaterialTypeKey, normalized);
+        DeskBoxFloatingMaterialType = normalized;
+    }
 
     #endregion
 

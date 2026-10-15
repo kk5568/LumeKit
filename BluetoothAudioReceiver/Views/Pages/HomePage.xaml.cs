@@ -29,6 +29,36 @@ public sealed partial class HomePage : Page
         await ViewModel.HotkeyNotifications.LoadCardsAsync();
     }
 
+    private async void OnAddHotkeyCardClick(object sender, RoutedEventArgs e)
+    {
+        await AudioHotkeyDialogs.AddOrEditAsync(XamlRoot, ActualTheme, ViewModel.Bluetooth, existingCard: null);
+    }
+
+    private async void OnAddHotkeyNotificationCardClick(object sender, RoutedEventArgs e)
+    {
+        var result = await HotkeyNotificationCardDialogs.ShowEditorAsync(
+            XamlRoot,
+            DispatcherQueue,
+            ActualTheme,
+            ViewModel.HotkeyNotifications,
+            _hotkeyService,
+            "添加按键卡片",
+            HotkeyNotificationCard.DefaultHotkey,
+            HotkeyNotificationCard.DefaultStatus);
+
+        if (result is null)
+        {
+            return;
+        }
+
+        await ViewModel.HotkeyNotifications.AddCardAsync(result.Value.Hotkey, result.Value.Status);
+    }
+
+    private void OnAddAutomationCardClick(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(AutomationEditorPage));
+    }
+
     private async void OnEditHotkeyCardClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element || element.DataContext is not HotkeyBindingCard card)

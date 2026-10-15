@@ -15,111 +15,118 @@
         <Grid x:Name="WidgetShellRoot"
               Background="Transparent"
               RenderTransformOrigin="0.5,0.5">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"
-                               MinHeight="40" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
 
             <!-- Visuals are resolved in code by ApplySurfaceStyle, matching DeskBox
                  WidgetShell.xaml: the plate only paints in Solid mode; every other
                  material leaves it transparent so the system backdrop shows through. -->
             <Border x:Name="BackgroundPlate"
-                    Grid.RowSpan="2"
                     BorderThickness="0"
                     CornerRadius="0" />
 
-            <Grid x:Name="TitleBarGrid"
-                  Grid.Row="0"
-                  Padding="{StaticResource DeskBoxFloatingPadding}"
-                  HorizontalAlignment="Stretch"
-                  Background="Transparent"
-                  ColumnSpacing="{StaticResource DeskBoxFloatingContentSpacing}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <!-- 统一布局：标题和正文合成一整块，在窗口里垂直居中，不再分两行、不再画分隔线。
+                 窗口高度由 MeasureFittedHeight 按这块的实际高度算。 -->
+            <Grid x:Name="ContentBlock"
+                  VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                <Grid Width="{StaticResource DeskBoxFloatingIconBoxSize}"
-                      Height="{StaticResource DeskBoxFloatingIconBoxSize}"
-                      VerticalAlignment="Center">
-                    <TextBlock x:Name="IconGlyph"
-                               FontFamily="Segoe Fluent Icons"
-                               FontSize="{StaticResource DeskBoxFloatingIconFontSize}"
+                <Grid x:Name="TitleBarGrid"
+                      Grid.Row="0"
+                      Padding="{StaticResource DeskBoxFloatingPadding}"
+                      HorizontalAlignment="Stretch"
+                      Background="Transparent"
+                      ColumnSpacing="{StaticResource DeskBoxFloatingContentSpacing}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Width="{StaticResource DeskBoxFloatingIconBoxSize}"
+                          Height="{StaticResource DeskBoxFloatingIconBoxSize}"
+                          VerticalAlignment="Center">
+                        <TextBlock x:Name="IconGlyph"
+                                   FontFamily="Segoe Fluent Icons"
+                                   FontSize="{StaticResource DeskBoxFloatingIconFontSize}"
+                                   Foreground="{ThemeResource DeskBoxFloatingTextBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Text="&#xE765;" />
+                    </Grid>
+
+                    <TextBlock x:Name="TitleText"
+                               Grid.Column="1"
+                               FontFamily="{StaticResource DeskBoxFloatingFontFamily}"
+                               FontSize="{StaticResource DeskBoxFloatingTextFontSize}"
                                Foreground="{ThemeResource DeskBoxFloatingTextBrush}"
+                               Text="测试"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
                                HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Text="" />
+                               VerticalAlignment="Center" />
+
+                    <TextBlock x:Name="StatusText"
+                               Grid.Column="2"
+                               FontFamily="{StaticResource DeskBoxFloatingFontFamily}"
+                               FontSize="{StaticResource DeskBoxFloatingTextFontSize}"
+                               Foreground="{ThemeResource DeskBoxFloatingSecondaryTextBrush}"
+                               Text="已触发"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
+                               VerticalAlignment="Center" />
                 </Grid>
 
-                <TextBlock x:Name="TitleText"
-                           Grid.Column="1"
-                           FontFamily="{StaticResource DeskBoxFloatingFontFamily}"
-                           FontSize="{StaticResource DeskBoxFloatingTextFontSize}"
-                           Foreground="{ThemeResource DeskBoxFloatingTextBrush}"
-                           Text="测试"
-                           TextTrimming="CharacterEllipsis"
-                           TextWrapping="NoWrap"
-                           VerticalAlignment="Center" />
+                <!-- 旧设计（统一布局开关关闭时才显示）：DeskBox WidgetShell.xaml:184-190 的标题分隔线。 -->
+                <Border x:Name="HeaderDivider"
+                        Grid.Row="0"
+                        Height="1"
+                        Margin="12,0,12,4"
+                        Opacity="0.62"
+                        VerticalAlignment="Bottom"
+                        Background="{ThemeResource DeskBoxFloatingDividerBrush}"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed" />
 
-                <TextBlock x:Name="StatusText"
-                           Grid.Column="2"
-                           FontFamily="{StaticResource DeskBoxFloatingFontFamily}"
-                           FontSize="{StaticResource DeskBoxFloatingTextFontSize}"
-                           Foreground="{ThemeResource DeskBoxFloatingSecondaryTextBrush}"
-                           Text="已触发"
-                           TextTrimming="CharacterEllipsis"
-                           TextWrapping="NoWrap"
-                           VerticalAlignment="Center" />
-            </Grid>
+                <Grid x:Name="ContentTransitionViewport"
+                      Grid.Row="1"
+                      Padding="{StaticResource DeskBoxFloatingBodyPadding}"
+                      Background="Transparent">
+                    <Grid x:Name="ShellContentPresenter"
+                          RowSpacing="4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
 
-            <Border x:Name="HeaderDivider"
-                    Grid.Row="0"
-                    Height="1"
-                    Margin="12,0,12,4"
-                    Opacity="0.62"
-                    VerticalAlignment="Bottom"
-                    Background="{ThemeResource DeskBoxFloatingDividerBrush}" />
+                        <TextBlock x:Name="DescriptionText"
+                                   Grid.Row="0"
+                                   FontFamily="{StaticResource DeskBoxFloatingFontFamily}"
+                                   FontSize="{StaticResource DeskBoxFloatingDescriptionFontSize}"
+                                   Foreground="{ThemeResource DeskBoxFloatingSecondaryTextBrush}"
+                                   Text=""
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap"
+                                   Visibility="Collapsed"
+                                   VerticalAlignment="Center" />
 
-            <Grid x:Name="ContentTransitionViewport"
-                  Grid.Row="1"
-                  Padding="{StaticResource DeskBoxFloatingBodyPadding}"
-                  Background="Transparent">
-                <Grid x:Name="ShellContentPresenter"
-                      RowSpacing="4">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                <TextBlock x:Name="DescriptionText"
-                           Grid.Row="0"
-                           FontFamily="{StaticResource DeskBoxFloatingFontFamily}"
-                           FontSize="{StaticResource DeskBoxFloatingDescriptionFontSize}"
-                           Foreground="{ThemeResource DeskBoxFloatingSecondaryTextBrush}"
-                           Text=""
-                           TextTrimming="CharacterEllipsis"
-                           TextWrapping="NoWrap"
-                           Visibility="Collapsed"
-                           VerticalAlignment="Center" />
-
-                <ScrollViewer x:Name="ItemsScrollViewer"
-                              Grid.Row="1"
-                              MaxHeight="220"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Visibility="Collapsed">
-                    <StackPanel x:Name="PreviewItemsPanel"
-                                Spacing="4" />
-                </ScrollViewer>
+                        <ScrollViewer x:Name="ItemsScrollViewer"
+                                      Grid.Row="1"
+                                      MaxHeight="220"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Visibility="Collapsed">
+                            <StackPanel x:Name="PreviewItemsPanel"
+                                        Spacing="4" />
+                        </ScrollViewer>
+                    </Grid>
                 </Grid>
             </Grid>
 
             <Grid x:Name="FeedbackLayer"
-                  Grid.RowSpan="2"
                   Margin="12"
                   IsHitTestVisible="False" />
-            </Grid>
+        </Grid>
     </Grid>
 </windowex:WindowEx>

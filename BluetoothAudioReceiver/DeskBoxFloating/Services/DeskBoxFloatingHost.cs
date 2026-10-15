@@ -21,6 +21,8 @@ public sealed class DeskBoxFloatingHost : IDeskBoxFloatingService
     private DeskBoxFloatingWindow? _window;
     private MenuFlyout? _previewMenu;
 
+    public event EventHandler? Dismissed;
+
     public DeskBoxFloatingHost(DispatcherQueue dispatcherQueue)
     {
         _dispatcherQueue = dispatcherQueue;
@@ -68,6 +70,7 @@ public sealed class DeskBoxFloatingHost : IDeskBoxFloatingService
     {
         var window = new DeskBoxFloatingWindow();
         window.Closed += (_, _) => _window = null;
+        window.Dismissed += (_, args) => Dismissed?.Invoke(this, args);
         return window;
     }
 

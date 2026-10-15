@@ -10,6 +10,14 @@ internal static partial class DeskBoxFloatingWin32Helper
         NotificationWin32Helper.ConfigureDeskBoxWindow(hwnd);
     }
 
+    /// <summary>抬升动画落定后再置顶：动画期间不置顶，浮窗才会从任务栏后面冒出来。</summary>
+    internal static void EnsureTopMostNoActivate(IntPtr hwnd) =>
+        NotificationWin32Helper.EnsureTopMostNoActivate(hwnd);
+
+    /// <summary>摘掉置顶，让浮窗回到普通层，进出场动画才会被任务栏挡住。</summary>
+    internal static void ClearTopMostNoActivate(IntPtr hwnd) =>
+        NotificationWin32Helper.ClearTopMostNoActivate(hwnd);
+
     internal static bool TryGetCursorPosition(out PointInt32 point)
     {
         if (GetCursorPos(out var nativePoint))

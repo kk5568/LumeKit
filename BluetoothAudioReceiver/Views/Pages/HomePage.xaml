@@ -47,8 +47,20 @@
         <StackPanel Spacing="{StaticResource HomePageSectionSpacing}">
 
             <StackPanel Spacing="{StaticResource HomePageSectionHeaderSpacing}">
-                <TextBlock Text="音频管理"
-                           Style="{StaticResource HomeSectionHeaderStyle}" />
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="音频管理"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource HomeSectionHeaderStyle}" />
+                    <Button Grid.Column="1"
+                            Width="84"
+                            Content="添加"
+                            Click="OnAddHotkeyCardClick" />
+                </Grid>
                 <ItemsControl ItemsSource="{x:Bind ViewModel.Bluetooth.HotkeyCards, Mode=OneWay}"
                               HorizontalAlignment="Left">
                     <ItemsControl.ItemTemplate>
@@ -68,8 +80,20 @@
             </StackPanel>
 
             <StackPanel Spacing="{StaticResource HomePageSectionHeaderSpacing}">
-                <TextBlock Text="快捷键管理"
-                           Style="{StaticResource HomeSectionHeaderStyle}" />
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="快捷键管理"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource HomeSectionHeaderStyle}" />
+                    <Button Grid.Column="1"
+                            Width="84"
+                            Content="添加"
+                            Click="OnAddHotkeyNotificationCardClick" />
+                </Grid>
                 <Grid>
                     <ItemsControl ItemsSource="{x:Bind ViewModel.HotkeyNotifications.HotkeyCards, Mode=OneWay}"
                                   HorizontalAlignment="Left">
@@ -90,15 +114,27 @@
 
                     <Border Style="{StaticResource HomeEmptyStateBorderStyle}"
                             Visibility="{x:Bind ViewModel.HotkeyNotifications.EmptyStateVisibility, Mode=OneWay}">
-                        <TextBlock Text="暂无卡片，进入“快捷键管理”添加。"
+                        <TextBlock Text="暂无卡片，点击“添加”创建。"
                                    Style="{StaticResource HomeEmptyStateTextStyle}" />
                     </Border>
                 </Grid>
             </StackPanel>
 
             <StackPanel Spacing="{StaticResource HomePageSectionHeaderSpacing}">
-                <TextBlock Text="自动化列表"
-                           Style="{StaticResource HomeSectionHeaderStyle}" />
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="自动化列表"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource HomeSectionHeaderStyle}" />
+                    <Button Grid.Column="1"
+                            Width="84"
+                            Content="添加"
+                            Click="OnAddAutomationCardClick" />
+                </Grid>
                 <Grid>
                     <ItemsControl ItemsSource="{x:Bind ViewModel.Automations.Automations, Mode=OneWay}"
                                   HorizontalAlignment="Left">
@@ -120,7 +156,7 @@
 
                     <Border Style="{StaticResource HomeEmptyStateBorderStyle}"
                             Visibility="{x:Bind ViewModel.Automations.EmptyStateVisibility, Mode=OneWay}">
-                        <TextBlock Text="暂无自动化，进入“自动化列表”新建。"
+                        <TextBlock Text="暂无自动化，点击“添加”创建。"
                                    Style="{StaticResource HomeEmptyStateTextStyle}" />
                     </Border>
                 </Grid>

@@ -66,6 +66,18 @@ public interface IAppSettingsService
 
     Task SetDeskBoxFloatingTestDurationMillisecondsAsync(int milliseconds);
 
+    string DeskBoxFloatingAnimationTier { get; }
+
+    Task SetDeskBoxFloatingAnimationTierAsync(string tier);
+
+    bool DeskBoxFloatingUnifiedLayout { get; }
+
+    Task SetDeskBoxFloatingUnifiedLayoutAsync(bool enabled);
+
+    string DeskBoxFloatingMaterialType { get; }
+
+    Task SetDeskBoxFloatingMaterialTypeAsync(string materialType);
+
 
     string PreferredInputDeviceId { get; }
 

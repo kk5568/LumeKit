@@ -21,6 +21,9 @@ public class LocalSettingsKeys
     public readonly string DisableNotificationInRecordingOrLiveKey = "DisableNotificationInRecordingOrLive";
     public readonly string HideNotificationWhenTrayPopupVisibleKey = "HideNotificationWhenTrayPopupVisible";
     public readonly string DeskBoxFloatingTestDurationMillisecondsKey = "DeskBoxFloatingTestDurationMilliseconds";
+    public readonly string DeskBoxFloatingAnimationTierKey = "DeskBoxFloatingAnimationTier";
+    public readonly string DeskBoxFloatingUnifiedLayoutKey = "DeskBoxFloatingUnifiedLayout";
+    public readonly string DeskBoxFloatingMaterialTypeKey = "DeskBoxFloatingMaterialType";
     public readonly string PreferredInputDeviceIdKey = "PreferredInputDeviceId";
 
     public readonly string PreferredOutputDeviceIdKey = "PreferredOutputDeviceId";

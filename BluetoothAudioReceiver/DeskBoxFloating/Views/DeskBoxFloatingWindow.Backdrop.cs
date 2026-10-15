@@ -7,6 +7,7 @@
 // 算法与调用顺序保持逐行一致；不再使用 popover 版 WidgetMaterialSystemBackdrop。
 
 using BluetoothAudioReceiver.DeskBoxFloating.Helpers;
+using BluetoothAudioReceiver.DeskBoxFloating.Models;
 using BluetoothAudioReceiver.DeskBoxFloating.Services;
 using BluetoothAudioReceiver.Helpers.Application;
 using Microsoft.UI;
@@ -57,7 +58,7 @@ public sealed partial class DeskBoxFloatingWindow
 
         bool isDark = RootContainer.ActualTheme == ElementTheme.Dark;
         double surfaceOpacity = Math.Clamp(SettingsService.DefaultWidgetOpacity, 0.0, 1.0);
-        string requestedMaterialType = SettingsService.DefaultWidgetMaterialType;
+        string requestedMaterialType = Models.AppSettings.Current.TrayMaterialType;
         string materialType = WindowsCompatibilityService.ResolveWidgetMaterialType(
             requestedMaterialType);
         var tintColor = materialType == SettingsService.WidgetMaterialTypeSolid
@@ -548,7 +549,6 @@ public sealed partial class DeskBoxFloatingWindow
         BackgroundPlate.BorderThickness = new Thickness(borderThickness);
         BackgroundPlate.BorderBrush = GetOrUpdateSolidColorBrush(BackgroundPlate.BorderBrush, borderColor);
         BackgroundPlate.CornerRadius = new CornerRadius(GetCurrentSurfaceCornerRadius());
-        HeaderDivider.Background = GetOrUpdateSolidColorBrush(HeaderDivider.Background, dividerColor);
     }
 
     private static Windows.UI.Color BuildFrostedSurfaceColor(

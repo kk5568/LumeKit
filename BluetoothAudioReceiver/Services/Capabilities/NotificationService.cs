@@ -1,7 +1,9 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.DependencyInjection;
+using BluetoothAudioReceiver.DeskBoxFloating.Models;
+using BluetoothAudioReceiver.DeskBoxFloating.Profiles;
 using BluetoothAudioReceiver.Views.Windows;
 
 namespace BluetoothAudioReceiver.Services;
@@ -10,7 +12,7 @@ internal class NotificationService : INotificationService
 {
     private const string HotkeyGlyph = "\uE765";
 
-    private NotificationWindow? _window;
+    private IDeskBoxFloatingService? _floating;
     private readonly object _lock = new();
     private static readonly Serilog.ILogger _log = Serilog.Log.ForContext("SourceContext", nameof(NotificationService));
     private readonly Queue<QueuedNotification> _queue = new();
@@ -184,41 +186,39 @@ internal class NotificationService : INotificationService
                     return;
                 }
 
+                IDeskBoxFloatingService? floating = null;
+
+                void OnDismissed(object? sender, EventArgs args)
+                {
+                    if (floating is not null)
+                    {
+                        floating.Dismissed -= OnDismissed;
+                    }
+
+                    shown.TrySetResult();
+                }
+
                 try
                 {
-                    EnsureWindow();
-                    if (_window == null)
+                    floating = EnsureFloatingService();
+                    if (floating == null)
                     {
                         shown.TrySetResult();
                         return;
                     }
 
-                    void OnDismissed(object? sender, EventArgs args)
-                    {
-                        if (_window is not null)
-                        {
-                            _window.NotificationDismissed -= OnDismissed;
-                        }
-
-                        shown.TrySetResult();
-                    }
-
-                    _window.NotificationDismissed += OnDismissed;
-                    var displayNotification = BuildDisplayNotification(notification);
-                    _window.ShowNotification(
-                        displayNotification.IconGlyph,
-                        displayNotification.Message,
-                        displayNotification.Status,
-                        displayNotification.CompactLayout,
-                        displayNotification.WindowWidthOverride,
-                        displayNotification.WindowHeightOverride,
-                        displayNotification.DetailLines,
-                        displayNotification.AutomationLayout,
-                        displayNotification.DurationMilliseconds,
-                        displayNotification.DeskBoxLayout);
+                    // DeskBox 浮窗的 Dismissed 在退场动画结束、窗口真正隐藏之后才触发，
+                    // 用它代替旧窗口的 NotificationDismissed 给队列串行化：这一条放完再放下一条。
+                    floating.Dismissed += OnDismissed;
+                    floating.Show(BuildFloatingRequest(notification));
                 }
                 catch (Exception ex)
                 {
+                    if (floating is not null)
+                    {
+                        floating.Dismissed -= OnDismissed;
+                    }
+
                     _log.Warning(
                         ex,
                         "显示 OSD 通知失败。CorrelationId={CorrelationId}",
@@ -261,20 +261,46 @@ internal class NotificationService : INotificationService
         };
     }
 
-    private void EnsureWindow()
+    private IDeskBoxFloatingService? EnsureFloatingService()
     {
-        if (_window != null)
+        if (_floating != null)
         {
-            return;
+            return _floating;
         }
 
-        _window = new NotificationWindow();
-        _window.Closed += (_, _) =>
+        try
         {
-            lock (_lock)
-            {
-                _window = null;
-            }
+            _floating = Ioc.Default.GetRequiredService<IDeskBoxFloatingService>();
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "获取 DeskBox 浮层服务失败。");
+            return null;
+        }
+
+        return _floating;
+    }
+
+    /// <summary>
+    /// 把队列里的通知翻译成 DeskBox 浮窗请求。多行明细/合并暂不接入（用户决定），
+    /// 只保留单行：图标 + 消息 + 状态；窄档（快捷键/紧凑，宽 400/420）走快捷键档案，其余走标准档案。
+    /// </summary>
+    private static DeskBoxFloatingRequest BuildFloatingRequest(QueuedNotification notification)
+    {
+        bool narrowProfile = notification.CompactLayout
+            || notification.WindowWidthOverride is > 0 and <= 420;
+
+        return new DeskBoxFloatingRequest
+        {
+            ProfileId = narrowProfile
+                ? DeskBoxFloatingProfiles.NotificationHotkey.Id
+                : DeskBoxFloatingProfiles.NotificationDefault.Id,
+            IconGlyph = notification.IconGlyph,
+            Title = notification.Message,
+            Status = notification.Status,
+            DurationMilliseconds = notification.DurationMilliseconds ?? 2500,
+            WidthOverride = notification.WindowWidthOverride,
+            HeightOverride = notification.WindowHeightOverride
         };
     }
 
@@ -351,7 +377,8 @@ internal class NotificationService : INotificationService
 
         try
         {
-            if (_window != null)
+            var floating = _floating;
+            if (floating != null)
             {
                 if (App.MainWindow?.DispatcherQueue != null)
                 {
@@ -359,7 +386,7 @@ internal class NotificationService : INotificationService
                     {
                         try
                         {
-                            _window?.Close();
+                            floating.Dismiss();
                         }
                         catch
                         {
@@ -369,7 +396,7 @@ internal class NotificationService : INotificationService
                 }
                 else
                 {
-                    _window.Close();
+                    floating.Dismiss();
                 }
             }
         }

@@ -52,6 +52,7 @@ internal static partial class NotificationWin32Helper
     internal const int GwlExStyle = -20;
     internal const int GwlStyle = -16;
     internal const int WsExToolWindow = 0x00000080;
+    internal const int WsExTopMost = 0x00000008;
     internal const int WsCaption = 0x00C00000;
     internal const int WsBorder = 0x00800000;
     internal const int WsDlgFrame = 0x00400000;
@@ -140,6 +141,65 @@ internal static partial class NotificationWin32Helper
 
         int borderNone = unchecked((int)0xFFFFFFFE);
         TrySetDwmWindowAttribute(hwnd, DwmWindowAttributeBorderColor, ref borderNone);
+    }
+
+    /// <summary>
+    /// 通知浮窗保持置顶（不抢焦点、不改尺寸/位置）。ConfigureDeskBoxWindow 里的
+    /// SetWindowPos 用的是 HWND_TOP，会把 z-order 重置，所以置顶必须在它之后调用。
+    /// 做法对齐 Views\Windows\NotificationWindow.xaml.cs:574 的 EnsureTopMostNoActivate。
+    /// </summary>
+    internal static void EnsureTopMostNoActivate(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            int exStyle = GetWindowLong(hwnd, GwlExStyle);
+            SetWindowLong(hwnd, GwlExStyle, exStyle | WsExTopMost | WsExToolWindow);
+            SetWindowPos(
+                hwnd,
+                new IntPtr(-1),
+                0,
+                0,
+                0,
+                0,
+                SwpNoMove | SwpNoSize | SwpNoActivate);
+        }
+        catch
+        {
+        }
+    }
+
+    /// <summary>
+    /// 摘掉置顶（WS_EX_TOPMOST + HWND_NOTOPMOST）。SetWindowPos 用 HWND_TOP 并不会
+    /// 把窗口移出置顶层，必须显式 HWND_NOTOPMOST。
+    /// </summary>
+    internal static void ClearTopMostNoActivate(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            int exStyle = GetWindowLong(hwnd, GwlExStyle);
+            SetWindowLong(hwnd, GwlExStyle, exStyle & ~WsExTopMost);
+            SetWindowPos(
+                hwnd,
+                new IntPtr(-2),
+                0,
+                0,
+                0,
+                0,
+                SwpNoMove | SwpNoSize | SwpNoActivate);
+        }
+        catch
+        {
+        }
     }
 
     internal static void EnsureSystemDispatcherQueue()
