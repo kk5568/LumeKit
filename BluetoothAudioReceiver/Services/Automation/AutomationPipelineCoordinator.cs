@@ -36,7 +36,7 @@ internal sealed class AutomationPipelineCoordinator
         _pipelineExecutor = pipelineExecutor;
     }
 
-    public async Task ExecutePipelineNowAsync(AutomationPipeline pipeline)
+    public async Task<string?> ExecutePipelineNowAsync(AutomationPipeline pipeline)
     {
         var triggerType = _triggerRegistry.Normalize(pipeline.Trigger.TriggerType);
         var payload = pipeline.Trigger.Parameters.ToDictionary(
@@ -54,13 +54,13 @@ internal sealed class AutomationPipelineCoordinator
         if (ShouldSkip(pipeline, triggerEvent, out var optionResult, out var optionMessage))
         {
             _log.Information("Automation direct test skipped. Result={Result}, Message={Message}", optionResult, optionMessage);
-            return;
+            return string.IsNullOrWhiteSpace(optionMessage) ? optionResult : optionMessage;
         }
 
         if (!_decisionService.ValidateActions(pipeline, out var validationMessage))
         {
             _log.Warning("Automation direct test rejected. {Message}", validationMessage);
-            return;
+            return validationMessage;
         }
 
         var context = CreateExecutionContext(pipeline, triggerEvent);
@@ -71,6 +71,7 @@ internal sealed class AutomationPipelineCoordinator
             triggerEvent.CorrelationId);
         _lastRunAt[pipeline.Id] = triggerEvent.OccurredAt;
         await _pipelineExecutor.ExecuteAsync(pipeline, triggerEvent, context);
+        return null;
     }
 
     public async Task ExecuteStartupPipelinesAsync()
@@ -194,7 +195,8 @@ internal sealed class AutomationPipelineCoordinator
 
         return _pipelineRepository.Pipelines
             .Select((pipeline, index) => new { Pipeline = pipeline, Index = index })
-            .OrderBy(item => sceneOrder.TryGetValue(GetSceneName(item.Pipeline), out var index) ? index : int.MaxValue)
+            .OrderByDescending(item => item.Pipeline.Options?.Priority ?? 0)
+            .ThenBy(item => sceneOrder.TryGetValue(GetSceneName(item.Pipeline), out var index) ? index : int.MaxValue)
             .ThenBy(item => item.Index)
             .Select(item => item.Pipeline);
     }

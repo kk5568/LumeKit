@@ -47,7 +47,7 @@ internal sealed class AutomationTriggerMatcher
             AutomationTriggerCatalog.OutputDeviceChanged => AutomationOutputDeviceTriggerMatcher.Matches(trigger, triggerEvent),
             AutomationTriggerCatalog.SunriseReached => true,
             AutomationTriggerCatalog.SunsetReached => true,
-            _ => true
+            _ => false
         };
 
         if (matched)
@@ -56,7 +56,7 @@ internal sealed class AutomationTriggerMatcher
         }
         else if (string.IsNullOrWhiteSpace(reason))
         {
-            reason = "触发参数不匹配";
+            reason = $"触发未匹配：{normalizedTrigger}";
         }
 
         return matched;

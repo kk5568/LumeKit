@@ -84,6 +84,17 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         "触摸板"
     ];
 
+    /// <summary>「选择动作」弹窗的分类分组，需覆盖 <see cref="EditorActionOptions"/> 的全部动作。</summary>
+    private static readonly IReadOnlyList<AutomationActionCategory> ActionPickerCategoryList =
+    [
+        new("显示与外观", ["调整亮度", "深色模式"]),
+        new("电源", ["电源模式"]),
+        new("程序与网页", ["启动程序", "关闭程序", "打开网页"]),
+        new("音频", ["输入音频", "音频输出"]),
+        new("快捷键", [GHelperActionTitle, WindowsHotkeyActionTitle, CustomHotkeyActionTitle]),
+        new("系统与流程", ["通知", "触摸板", "等待"])
+    ];
+
     private static readonly IReadOnlyDictionary<string, string> TriggerTitleToTypeMap =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -158,6 +169,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     ];
 
     public IReadOnlyList<string> ActionOptions => EditorActionOptions;
+    public IReadOnlyList<AutomationActionCategory> ActionPickerCategories => ActionPickerCategoryList;
     public IReadOnlyList<string> TriggerOptions => TriggerActionOptions;
     public IReadOnlyList<string> InputDeviceActionOptions => _inputDeviceActionOptions;
     public IReadOnlyList<string> PerformanceWindowModeOptions => _performanceWindowModeOptions;
@@ -573,7 +585,13 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
 
         try
         {
-            await _automationRuleEngine.ExecutePipelineNowAsync(pipeline).WaitAsync(TimeSpan.FromSeconds(30));
+            var skipReason = await _automationRuleEngine.ExecutePipelineNowAsync(pipeline).WaitAsync(TimeSpan.FromSeconds(30));
+            if (!string.IsNullOrWhiteSpace(skipReason))
+            {
+                LastSaveErrorMessage = $"测试未执行：{skipReason}";
+                return false;
+            }
+
             return true;
         }
         catch (TimeoutException)
@@ -2026,4 +2044,6 @@ public sealed class AutomationSectionViewModel
 }
 
 public sealed record BluetoothTriggerDeviceItem(string Id, string Name);
+
+public sealed record AutomationActionCategory(string Title, IReadOnlyList<string> Actions);
 

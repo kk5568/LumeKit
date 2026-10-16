@@ -11,7 +11,7 @@
     <!--  托盘左键音频切换浮层：外形与配色沿用 DeskBox 浮层/菜单的共享设计值。  -->
     <Border
         x:Name="SurfaceRoot"
-        Width="360"
+        Width="300"
         MaxHeight="620"
         Background="{ThemeResource WidgetOverlaySurfaceBrush}"
         BorderBrush="{ThemeResource WidgetOverlayStrokeBrush}"

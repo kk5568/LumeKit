@@ -21,17 +21,17 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     // 供 NotificationService 判断托盘浮层是否正在显示（对应原来的 TrayQuickPanelWindow.IsPanelVisible）。
     public static bool IsOpen { get; internal set; }
 
-    private const int CardsPerRow = 3;
-    private const double CardHeight = 68;
+    private const int CardsPerRow = 1;
+    private const double CardHeight = 46;
     private const double CardCornerRadius = 6;
     private const double CardSpacing = 8;
     private const double CardBorderThickness = 1.5;      // 未选中的灰色描边
     private const double CardActiveBorderThickness = 2;  // 选中：蓝色描边（右上角蓝点已去掉）
-    private const double CardContentMargin = 6;
+    private const double CardContentMargin = 6.6;
     private const double CardIconFontSize = 18;
-    private const double CardTypeSpacing = 6;
+    private const double CardTypeSpacing = 6.6;
     private const double CardTitleFontSize = 12;
-    private const double CardNameFontSize = 11;
+    private const double CardNameFontSize = 12.375;
     private const double SectionHeaderFontSize = 12;
     private const double SectionIconFontSize = 14;
 
@@ -333,55 +333,41 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
             BorderBrush = new SolidColorBrush(item.IsActive ? AccentColor : _palette.CardStroke)
         };
         _cardMap[card] = item;
+        ToolTipService.SetToolTip(card, item.DeviceName);
 
+        // 一排一个的卡片：只有一行 —— 设备图标 + 设备名称。
         var content = new Grid
         {
-            Margin = new Thickness(CardContentMargin),
-            RowSpacing = 2
+            Margin = new Thickness(CardContentMargin, 4, CardContentMargin, 4),
+            ColumnSpacing = CardTypeSpacing,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var textBrush = new SolidColorBrush(item.IsActive ? _palette.PrimaryText : _palette.SecondaryText);
 
-        // 第一行：图标和类型并排。
-        var typeRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = CardTypeSpacing,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        typeRow.Children.Add(new FontIcon
+        content.Children.Add(new FontIcon
         {
             Glyph = item.Glyph,
             FontSize = CardIconFontSize,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = textBrush
         });
-        typeRow.Children.Add(new TextBlock
-        {
-            Text = item.TypeLabel,
-            FontSize = CardTitleFontSize,
-            FontWeight = FontWeights.SemiBold,
-            MaxWidth = 76,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            Foreground = textBrush
-        });
-        content.Children.Add(typeRow);
 
-        // 第二行：设备名称。
+        // 设备名称：紧跟图标，单行显示；选中时与图标同色。
         var name = new TextBlock
         {
             Text = item.DeviceName,
             FontSize = CardNameFontSize,
-            TextAlignment = TextAlignment.Center,
+            TextAlignment = TextAlignment.Left,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            TextWrapping = TextWrapping.NoWrap,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Foreground = new SolidColorBrush(_palette.SecondaryText)
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = textBrush
         };
-        Grid.SetRow(name, 1);
+        Grid.SetColumn(name, 1);
         content.Children.Add(name);
 
         card.Child = content;

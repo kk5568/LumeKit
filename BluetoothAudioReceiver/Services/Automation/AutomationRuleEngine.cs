@@ -37,7 +37,7 @@ public sealed class AutomationRuleEngine : IDisposable
             _pipelineRepository.Pipelines.Count);
     }
 
-    public Task ExecutePipelineNowAsync(AutomationPipeline pipeline)
+    public Task<string?> ExecutePipelineNowAsync(AutomationPipeline pipeline)
         => _coordinator.ExecutePipelineNowAsync(pipeline);
 
     public Task ExecuteStartupPipelinesAsync()

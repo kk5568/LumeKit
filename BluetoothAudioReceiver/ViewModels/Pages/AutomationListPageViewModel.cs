@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using BluetoothAudioReceiver.Automation;
 using BluetoothAudioReceiver.Automation.Models;
 using BluetoothAudioReceiver.Contracts.Services;
@@ -64,7 +64,14 @@ public sealed partial class AutomationListPageViewModel : ObservableRecipient
         item.LastRunText = "测试中...";
         try
         {
-            await _automationRuleEngine.ExecutePipelineNowAsync(pipeline).WaitAsync(TimeSpan.FromSeconds(30));
+            var skipReason = await _automationRuleEngine.ExecutePipelineNowAsync(pipeline).WaitAsync(TimeSpan.FromSeconds(30));
+            if (!string.IsNullOrWhiteSpace(skipReason))
+            {
+                item.LastRunText = $"未执行：{skipReason}";
+                return false;
+            }
+
+            item.LastRunText = "已执行";
             return true;
         }
         catch (TimeoutException)

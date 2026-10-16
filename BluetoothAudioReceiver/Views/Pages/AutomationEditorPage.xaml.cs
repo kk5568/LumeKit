@@ -11,6 +11,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage.Pickers;
 using Windows.System;
@@ -21,6 +22,7 @@ namespace BluetoothAudioReceiver.Views.Pages;
 public sealed partial class AutomationEditorPage : Page
 {
     private const string NotConfiguredText = "未设置";
+    private const int ActionTileColumnCount = 3;
     private static readonly string RouteLogPath = BuildAutomationEditorRouteLogPath();
 
     public AutomationBuilderPageViewModel ViewModel { get; }
@@ -556,8 +558,151 @@ public sealed partial class AutomationEditorPage : Page
             .Select(item => new PickerOption(item, AutomationDisplayTextConverter.ToDisplayText(item)))
             .ToList();
 
-        return await ShowPickerDialogAsync("选择动作", "动作", options, currentAction);
+        return await ShowActionTileDialogAsync(options, currentAction);
     }
+
+    private async Task<string?> ShowActionTileDialogAsync(
+        IReadOnlyList<PickerOption> options,
+        string? currentValue)
+    {
+        if (options.Count == 0)
+        {
+            return null;
+        }
+
+        string? selected = null;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "选择动作",
+            CloseButtonText = "取消"
+        };
+
+        dialog.Content = BuildActionTileContent(options, currentValue, value =>
+        {
+            selected = value;
+            dialog.Hide();
+        });
+
+        await dialog.ShowAsync();
+        return selected;
+    }
+
+    private FrameworkElement BuildActionTileContent(
+        IReadOnlyList<PickerOption> options,
+        string? currentValue,
+        Action<string> commit)
+    {
+        var optionLookup = options.ToDictionary(option => option.Value, StringComparer.Ordinal);
+        var root = new StackPanel
+        {
+            Spacing = 16,
+            MinWidth = 460
+        };
+
+        foreach (var category in ViewModel.ActionPickerCategories)
+        {
+            var tiles = category.Actions
+                .Where(optionLookup.ContainsKey)
+                .Select(action => optionLookup[action])
+                .ToList();
+
+            if (tiles.Count == 0)
+            {
+                continue;
+            }
+
+            var caption = new TextBlock { Text = category.Title };
+            var captionStyle = TryGetAppResource<Style>("CaptionTextBlockStyle");
+            var captionBrush = TryGetAppResource<Brush>("TextFillColorSecondaryBrush");
+            if (captionStyle is not null)
+            {
+                caption.Style = captionStyle;
+            }
+
+            if (captionBrush is not null)
+            {
+                caption.Foreground = captionBrush;
+            }
+
+            var grid = new Grid
+            {
+                ColumnSpacing = 8,
+                RowSpacing = 8
+            };
+
+            for (var column = 0; column < ActionTileColumnCount; column++)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            }
+
+            for (var index = 0; index < tiles.Count; index++)
+            {
+                var row = index / ActionTileColumnCount;
+                while (grid.RowDefinitions.Count <= row)
+                {
+                    grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                }
+
+                var option = tiles[index];
+                var button = CreateActionTileButton(option, commit);
+                if (string.Equals(option.Value, currentValue, StringComparison.Ordinal))
+                {
+                    HighlightActionTile(button);
+                }
+
+                Grid.SetColumn(button, index % ActionTileColumnCount);
+                Grid.SetRow(button, row);
+                grid.Children.Add(button);
+            }
+
+            var section = new StackPanel { Spacing = 8 };
+            section.Children.Add(caption);
+            section.Children.Add(grid);
+            root.Children.Add(section);
+        }
+
+        return root;
+    }
+
+    private static Button CreateActionTileButton(PickerOption option, Action<string> commit)
+    {
+        var button = new Button
+        {
+            Padding = new Thickness(12, 10, 12, 10),
+            MinHeight = 44,
+            Content = new TextBlock
+            {
+                Text = option.Display,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center
+            }
+        };
+
+        var tileStyle = TryGetAppResource<Style>("HubItemButtonStyle");
+        if (tileStyle is not null)
+        {
+            button.Style = tileStyle;
+        }
+
+        button.Click += (_, _) => commit(option.Value);
+        return button;
+    }
+
+    private static void HighlightActionTile(Button button)
+    {
+        var accentBrush = TryGetAppResource<Brush>("AccentFillColorDefaultBrush");
+        if (accentBrush is not null)
+        {
+            button.BorderBrush = accentBrush;
+            button.BorderThickness = new Thickness(2);
+        }
+
+        button.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+    }
+
+    private static T? TryGetAppResource<T>(string key) where T : class
+        => Application.Current.Resources.TryGetValue(key, out var value) ? value as T : null;
 
     private async Task<string?> ShowTriggerPickerAsync(string? currentTrigger = null)
     {
