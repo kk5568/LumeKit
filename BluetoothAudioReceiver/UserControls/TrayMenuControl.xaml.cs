@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Windows.Devices.Enumeration;
+using BluetoothAudioReceiver.DeskBoxFloating.Models;
 using BluetoothAudioReceiver.Views.Windows;
 using DrawingPoint = System.Drawing.Point;
 
@@ -21,21 +22,29 @@ public sealed partial class TrayMenuControl : UserControl
     private const int TrayContextMenuEstimatedWidth = (int)TrayMenuItemWidth + 16;
     private const int TrayContextMenuFallbackOffsetPixels = 24;
 
+    // 浮层已经被这次点击的“点外部关闭”关掉时，不要让同一次托盘左键又把它打开。
+    private static readonly TimeSpan QuickPanelReopenGuard = TimeSpan.FromMilliseconds(400);
+
     public TrayMenuControlViewModel ViewModel { get; } = new();
     private readonly IAudioPlaybackConnectionService _connectionService;
-    private TrayQuickPanelWindow? _quickPanelWindow;
     private Window? _trayWindow;
     private TaskbarIcon? _trayIcon;
     private MenuFlyout? _contextMenu;
     private MenuFlyoutItem? _trayShowWindowItem;
+    private readonly IDeskBoxFloatingService _floatingService;
+    private TrayAudioQuickPanelControl? _quickPanelContent;
+    private bool _quickPanelVisible;
+    private DateTimeOffset _quickPanelClosedAt = DateTimeOffset.MinValue;
     private bool _disposed;
 
     public TrayMenuControl()
     {
         InitializeComponent();
-        _quickPanelWindow = new TrayQuickPanelWindow();
         _contextMenu = CreateContextMenu();
         CreateTrayHostWindow();
+
+        _floatingService = Ioc.Default.GetRequiredService<IDeskBoxFloatingService>();
+        _floatingService.Dismissed += OnFloatingDismissed;
 
         _connectionService = Ioc.Default.GetRequiredService<IAudioPlaybackConnectionService>();
         _connectionService.DeviceConnected += OnDeviceConnected;
@@ -166,8 +175,117 @@ public sealed partial class TrayMenuControl : UserControl
     [RelayCommand]
     private void ShowQuickPanel()
     {
-        _quickPanelWindow ??= new TrayQuickPanelWindow();
-        _quickPanelWindow.TogglePanel();
+        if (_disposed)
+        {
+            return;
+        }
+
+        // 这一下点击已经先把浮层“点外部关闭”了，就不要再打开。
+        if (DateTimeOffset.Now - _quickPanelClosedAt < QuickPanelReopenGuard)
+        {
+            return;
+        }
+
+        // 再点一次托盘先关掉；这也是「点浮层外面」「按 Esc」之外的最后一条关闭路径。
+        if (_quickPanelVisible)
+        {
+            _floatingService.Dismiss();
+            return;
+        }
+
+        var content = _quickPanelContent ??= CreateQuickPanelContent();
+        // 新一次打开：卡片顺序按最新优先级重排，这次打开期间保持不变。
+        content.ResetOrderSnapshot();
+        _quickPanelVisible = true;
+        TrayAudioQuickPanelControl.IsOpen = true;
+        _ = ShowQuickPanelAsync(content);
+    }
+
+    // 托盘左键面板改用公共浮窗（DeskBoxFloatingWindow）承载：材质、圆角、阴影、从托盘升起的动画
+    // 都用通知那套现成的；面板只画里面的卡片，外壳和定位不再自己写。
+    private TrayAudioQuickPanelControl CreateQuickPanelContent()
+    {
+        var content = new TrayAudioQuickPanelControl();
+        content.CloseRequested += (_, _) => _floatingService.Dismiss();
+        content.PrepareForHost();
+        return content;
+    }
+
+    private async Task ShowQuickPanelAsync(TrayAudioQuickPanelControl content)
+    {
+        try
+        {
+            await content.RefreshAsync();
+        }
+        catch
+        {
+            // 设备读不出来也让浮层弹出来，里面会显示「暂无设备」。
+        }
+
+        if (_disposed || !_quickPanelVisible)
+        {
+            return;
+        }
+
+        _floatingService.ShowContent(
+            new DeskBoxFloatingRequest
+            {
+                Kind = DeskBoxFloatingKind.Panel,
+                ProfileId = "Tray.QuickPanel",
+                AnchorPoint = ResolveQuickPanelAnchorPoint(),
+                AutoDismissOverride = false
+            },
+            content);
+    }
+
+    private void OnFloatingDismissed(object? sender, EventArgs e)
+    {
+        if (!_quickPanelVisible)
+        {
+            // 通知等别的浮层退场，不管。
+            return;
+        }
+
+        _quickPanelVisible = false;
+        TrayAudioQuickPanelControl.IsOpen = false;
+
+        // 浮层可能是被这次左键的「点外部关闭」关掉的，记时间防止同一次点击又打开。
+        _quickPanelClosedAt = DateTimeOffset.Now;
+    }
+
+    /// <summary>
+    /// 托盘左键快捷中心的锚点：底部任务栏时直接用托盘图标自己的左边缘/上边缘（面板由浮窗做
+    /// 「左对齐 + 右边贴屏」）；取不到图标或任务栏不在底部时，退回右键那套锚点（贴边不越界）。
+    /// </summary>
+    private global::Windows.Graphics.PointInt32 ResolveQuickPanelAnchorPoint()
+    {
+        if (!GetCursorPos(out var cursor))
+        {
+            return default;
+        }
+
+        try
+        {
+            if (TryGetTrayIconIdentity(out var windowHandle, out var trayIconId) &&
+                TryGetNotifyIconRect(windowHandle, trayIconId, out var iconRect) &&
+                IsUsableTrayIconRect(iconRect) &&
+                TryGetMonitorWorkArea(
+                    iconRect.Left + ((iconRect.Right - iconRect.Left) / 2),
+                    iconRect.Top + ((iconRect.Bottom - iconRect.Top) / 2),
+                    out var monitor,
+                    out var workArea) &&
+                GetNearestTaskbarEdge(iconRect, monitor, workArea) == TaskbarEdge.Bottom)
+            {
+                return new global::Windows.Graphics.PointInt32(iconRect.Left, iconRect.Top);
+            }
+
+            var point = GetTrayContextMenuAnchorPoint(new DrawingPoint(cursor.X, cursor.Y));
+            return new global::Windows.Graphics.PointInt32(point.X, point.Y);
+        }
+        catch
+        {
+            return new global::Windows.Graphics.PointInt32(cursor.X, cursor.Y);
+        }
     }
 
     [RelayCommand]
@@ -638,8 +756,11 @@ public sealed partial class TrayMenuControl : UserControl
 
         try
         {
-            _quickPanelWindow?.Close();
-            _quickPanelWindow = null;
+            _floatingService.Dismissed -= OnFloatingDismissed;
+            _quickPanelVisible = false;
+            TrayAudioQuickPanelControl.IsOpen = false;
+            _quickPanelContent = null;
+            _floatingService.Dismiss();
         }
         catch
         {

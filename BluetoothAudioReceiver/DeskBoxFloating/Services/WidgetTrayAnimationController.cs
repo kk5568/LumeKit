@@ -103,6 +103,12 @@ public sealed class WidgetTrayAnimationController : IDisposable
 
     public bool IsPositionTransitionActive => _targetPosition.HasValue;
 
+    /// <summary>
+    /// 每帧把窗口位置真正提交到 HWND 后回调一次。调用方据此按当前位置切换置顶
+    /// （在任务栏区域里不置顶、越过任务栏后再置顶）。
+    /// </summary>
+    public event Action<PointInt32>? PositionCommitted;
+
     public long NextGeneration()
     {
         return ++Generation;
@@ -787,6 +793,11 @@ public sealed class WidgetTrayAnimationController : IDisposable
         {
             IsApplyingBounds = false;
         }
+
+        // 位置已经落在 HWND 上，通知调用方按新位置决定要不要置顶。回调异常不能打断动画帧。
+        try { PositionCommitted?.Invoke(nextPosition); }
+        catch (Exception ex) { _log($"PositionCommitted handler failed: {ex.Message}"); }
+
         return true;
     }
 

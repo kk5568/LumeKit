@@ -47,6 +47,12 @@ internal static partial class NotificationWin32Helper
     internal const int DwmWindowAttributeSystemBackdropType = 38;
     internal const int DwmSystemBackdropNone = 1;
     internal const int DwmSystemBackdropTransientWindow = 3;
+    // 关掉浮窗外圈的系统阴影用：DWM 把窗口框（含窗口阴影）画在非客户区，停掉非客户区渲染就不会有阴影。
+    internal const int DwmWindowAttributeNcRenderingPolicy = 2;
+    internal const int DwmNcRenderingDisabled = 1;
+    // 停掉非客户区后圆角可能一起没了，显式再指定一次圆角。
+    internal const int DwmWindowAttributeWindowCornerPreference = 33;
+    internal const int DwmWindowCornerRound = 2;
     internal const int WindowCompositionAttributeAccentPolicy = 19;
 
     internal const int GwlExStyle = -20;
@@ -141,6 +147,18 @@ internal static partial class NotificationWin32Helper
 
         int borderNone = unchecked((int)0xFFFFFFFE);
         TrySetDwmWindowAttribute(hwnd, DwmWindowAttributeBorderColor, ref borderNone);
+
+        // 浮窗外圈那圈系统阴影来自 DWM 的窗口框渲染（非客户区），这里整块停掉；所有用这套
+        // 窗口外壳的浮窗（通知、托盘快捷中心）都会跟着没有阴影。
+        int ncRenderingDisabled = DwmNcRenderingDisabled;
+        TrySetDwmWindowAttribute(hwnd, DwmWindowAttributeNcRenderingPolicy, ref ncRenderingDisabled);
+
+        // 停掉非客户区后 Win11 的圆角可能一并消失，这里显式再锁一次圆角。
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            int roundCorner = DwmWindowCornerRound;
+            TrySetDwmWindowAttribute(hwnd, DwmWindowAttributeWindowCornerPreference, ref roundCorner);
+        }
     }
 
     /// <summary>

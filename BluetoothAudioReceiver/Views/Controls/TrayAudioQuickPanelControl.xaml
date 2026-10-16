@@ -1,0 +1,56 @@
+<UserControl
+    x:Class="BluetoothAudioReceiver.Views.Controls.TrayAudioQuickPanelControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:BluetoothAudioReceiver.Views.Controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    IsTabStop="True"
+    mc:Ignorable="d">
+
+    <!--  托盘左键音频切换浮层：外形与配色沿用 DeskBox 浮层/菜单的共享设计值。  -->
+    <Border
+        x:Name="SurfaceRoot"
+        Width="360"
+        MaxHeight="620"
+        Background="{ThemeResource WidgetOverlaySurfaceBrush}"
+        BorderBrush="{ThemeResource WidgetOverlayStrokeBrush}"
+        BorderThickness="1"
+        CornerRadius="8">
+        <Grid Padding="14,10,14,12" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <TextBlock
+                    x:Name="TitleText"
+                    VerticalAlignment="Center"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Text="快捷中心" />
+                <Button
+                    x:Name="CloseButton"
+                    Width="28"
+                    Height="28"
+                    Padding="0"
+                    HorizontalAlignment="Right"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ToolTipService.ToolTip="关闭">
+                    <FontIcon FontSize="12" Glyph="&#xE711;" />
+                </Button>
+            </Grid>
+
+            <ScrollViewer
+                Grid.Row="1"
+                HorizontalScrollBarVisibility="Disabled"
+                HorizontalScrollMode="Disabled"
+                VerticalScrollBarVisibility="Auto"
+                VerticalScrollMode="Auto">
+                <StackPanel x:Name="SectionsPanel" Spacing="12" />
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>

@@ -136,6 +136,14 @@ public class StartupHelper
         }
         else
         {
+#if DEBUG
+            // Debug builds used to share the installed build's autostart slot. Remove the leftovers
+            // that point at this debug executable so debug no longer autostarts by default.
+            if (Environment.ProcessPath is string appPath)
+            {
+                CleanupLegacyStartupEntries(appPath);
+            }
+#endif
             var check1 = CheckLogonTask();
             var check2 = CheckAndGetStartupRegistryKey(currentUser);
             return check1 || check2;
@@ -158,11 +166,13 @@ public class StartupHelper
         {
             try
             {
-                var action = task.Definition.Actions.FirstOrDefault()!.ToString().Trim();
-                if (!appPath.Equals(action, StringComparison.OrdinalIgnoreCase))
+                // Compare the action's executable path only. ExecAction.ToString() also contains the
+                // arguments and the action id, so it never equals the bare exe path.
+                var action = task.Definition.Actions.OfType<ExecAction>().FirstOrDefault();
+                if (action is null || !appPath.Equals(action.Path, StringComparison.OrdinalIgnoreCase))
                 {
                     UnscheduleLogonTask();
-                    ScheduleLogonTask();
+                    return ScheduleLogonTask();
                 }
 
                 return true;
@@ -191,9 +201,19 @@ public class StartupHelper
         td.Triggers.Add(new LogonTrigger { UserId = WindowsIdentity.GetCurrent().Name, Delay = TimeSpan.FromSeconds(2) });
         td.Actions.Add(appPath, NonMsixStartupTag);
 
-        if (RuntimeHelper.IsCurrentUserIsAdmin())
+        // RunLevel.Highest only works when the registering process is elevated; a filtered
+        // (non-elevated) admin token makes RegisterTaskDefinition throw. The app manifest is
+        // asInvoker, so a normal run level is enough.
+        try
         {
-            td.Principal.RunLevel = TaskRunLevel.Highest;
+            if (RuntimeHelper.IsCurrentProcessRunningElevated())
+            {
+                td.Principal.RunLevel = TaskRunLevel.Highest;
+            }
+        }
+        catch (Exception)
+        {
+            // Elevation state unavailable; fall back to a normal run-level task.
         }
 
         td.Settings.StopIfGoingOnBatteries = false;
@@ -227,6 +247,49 @@ public class StartupHelper
             return false;
         }
     }
+
+#if DEBUG
+    /// <summary>
+    /// Remove the legacy shared autostart entries that debug builds created before the per-build
+    /// split. Only entries pointing at this debug executable are removed, so an installed build's
+    /// own autostart is never touched.
+    /// </summary>
+    private static void CleanupLegacyStartupEntries(string appPath)
+    {
+        try
+        {
+            using var path = Registry.CurrentUser.OpenSubKey(RegistryPath, true);
+            if (path?.GetValue(Constants.LegacyStartupRegistryKey) is string value &&
+                value.Contains(appPath, StringComparison.OrdinalIgnoreCase))
+            {
+                path.DeleteValue(Constants.LegacyStartupRegistryKey);
+                using var approval = Registry.CurrentUser.OpenSubKey(ApprovalPath, true);
+                approval?.DeleteValue(Constants.LegacyStartupRegistryKey);
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        try
+        {
+            using var taskService = new TaskService();
+            var task = taskService.RootFolder.AllTasks
+                .FirstOrDefault(t => t.Name == Constants.LegacyStartupLogonTaskName);
+            if (task != null)
+            {
+                var action = task.Definition.Actions.OfType<ExecAction>().FirstOrDefault();
+                if (action != null && appPath.Equals(action.Path, StringComparison.OrdinalIgnoreCase))
+                {
+                    taskService.RootFolder.DeleteTask(Constants.LegacyStartupLogonTaskName);
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+#endif
 
     /// <summary>
     /// Check and get the startup register key.

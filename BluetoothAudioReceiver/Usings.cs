@@ -18,5 +18,6 @@ global using BluetoothAudioReceiver.Models.Settings;
 global using BluetoothAudioReceiver.Services;
 global using BluetoothAudioReceiver.UserControls;
 global using BluetoothAudioReceiver.ViewModels.Pages;
+global using BluetoothAudioReceiver.Views.Controls;
 global using BluetoothAudioReceiver.Views.Pages;
 global using BluetoothAudioReceiver.Views.Windows;

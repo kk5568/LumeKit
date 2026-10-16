@@ -49,12 +49,21 @@ public sealed class DeskBoxFloatingHost : IDeskBoxFloatingService
         });
     }
 
-    private void ShowDeskBoxFloatingWindow(DeskBoxFloatingRequest request)
+    public void ShowContent(DeskBoxFloatingRequest request, FrameworkElement content)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(content);
+
+        var normalizedRequest = Normalize(request);
+        _dispatcherQueue.TryEnqueue(() => ShowDeskBoxFloatingWindow(normalizedRequest, content));
+    }
+
+    private void ShowDeskBoxFloatingWindow(DeskBoxFloatingRequest request, FrameworkElement? content = null)
     {
         _menuHideTimer.Stop();
         _previewMenu?.Hide();
         _window ??= CreateWindow();
-        _window.Show(request);
+        _window.Show(request, content);
     }
 
     public void Dismiss()

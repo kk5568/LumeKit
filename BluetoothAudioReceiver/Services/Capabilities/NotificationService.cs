@@ -111,8 +111,12 @@ internal class NotificationService : INotificationService
         if (!bypassSuppression)
         {
             var appSettings = Ioc.Default.GetRequiredService<IAppSettingsService>();
+            // 托盘左键浮层（快捷中心）开着时不弹通知：通知和它共用同一个浮窗，
+            // 弹出来会把面板顶掉，看着像"点一下切换浮窗就关了"。
             if (ShouldSuppressByScene(appSettings) ||
-                (appSettings.HideNotificationWhenTrayPopupVisible && TrayQuickPanelWindow.IsPanelVisible))
+                TrayAudioQuickPanelControl.IsOpen ||
+                (appSettings.HideNotificationWhenTrayPopupVisible &&
+                 TrayQuickPanelWindow.IsPanelVisible))
             {
                 return;
             }

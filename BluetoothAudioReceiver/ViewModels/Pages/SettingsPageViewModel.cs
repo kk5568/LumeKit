@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
@@ -78,6 +78,7 @@ public partial class SettingsPageViewModel : ObservableRecipient, INavigationAwa
 
     private bool _isInitialized;
     private bool _startupStateLoaded;
+    private bool _updatingStartup;
     private bool _runStartupSnapshot;
     private bool _logonTaskSnapshot;
 
@@ -211,38 +212,101 @@ public partial class SettingsPageViewModel : ObservableRecipient, INavigationAwa
 
     partial void OnRunStartupChanged(bool value)
     {
-        if (_isInitialized)
+        if (!_isInitialized || _updatingStartup)
         {
+            return;
+        }
+
+        _ = ApplyRunStartupAsync(value);
+    }
+
+    partial void OnLogonTaskChanged(bool value)
+    {
+        if (!_isInitialized || _updatingStartup || !RunStartup)
+        {
+            return;
+        }
+
+        _ = ApplyLogonTaskAsync(value);
+    }
+
+    private async Task ApplyRunStartupAsync(bool value)
+    {
+        _updatingStartup = true;
+        try
+        {
+            bool applied;
             if (value)
             {
-                StartupHelper.SetStartupAsync(true, logon: LogonTask).Forget(nameof(SettingsPageViewModel));
+                applied = await StartupHelper.SetStartupAsync(true, logon: LogonTask);
             }
             else
             {
-                StartupHelper.SetStartupAsync(false, logon: true).Forget(nameof(SettingsPageViewModel));
-                StartupHelper.SetStartupAsync(false).Forget(nameof(SettingsPageViewModel));
+                await StartupHelper.SetStartupAsync(false, logon: true);
+                applied = await StartupHelper.SetStartupAsync(false);
+            }
+
+            if (!applied)
+            {
+                // The OS rejected the change; re-read and show the real state.
+                await RestoreStartupStateAsync();
+                return;
             }
 
             _runStartupSnapshot = value;
             if (!value)
             {
                 _logonTaskSnapshot = false;
+                LogonTask = false;
             }
+        }
+        finally
+        {
+            _updatingStartup = false;
         }
     }
 
-    partial void OnLogonTaskChanged(bool value)
+    private async Task ApplyLogonTaskAsync(bool value)
     {
-        if (_isInitialized)
+        _updatingStartup = true;
+        try
         {
-            if (RunStartup)
+            await StartupHelper.SetStartupAsync(false, logon: !value);
+            var applied = await StartupHelper.SetStartupAsync(true, logon: value);
+            if (!applied)
             {
-                StartupHelper.SetStartupAsync(false, logon: !value).Forget(nameof(SettingsPageViewModel));
-                StartupHelper.SetStartupAsync(true, logon: value).Forget(nameof(SettingsPageViewModel));
-                _runStartupSnapshot = true;
-                _logonTaskSnapshot = value;
+                // The OS rejected the change; re-read and show the real state.
+                await RestoreStartupStateAsync();
+                return;
             }
+
+            _runStartupSnapshot = true;
+            _logonTaskSnapshot = value;
         }
+        finally
+        {
+            _updatingStartup = false;
+        }
+    }
+
+    private async Task RestoreStartupStateAsync()
+    {
+        try
+        {
+            var logonTaskQuery = StartupHelper.GetStartupAsync(logon: true);
+            var startupEntryQuery = StartupHelper.GetStartupAsync();
+            await Task.WhenAll(logonTaskQuery, startupEntryQuery);
+            _logonTaskSnapshot = await logonTaskQuery;
+            _runStartupSnapshot = _logonTaskSnapshot || await startupEntryQuery;
+        }
+        catch
+        {
+            _runStartupSnapshot = false;
+            _logonTaskSnapshot = false;
+        }
+
+        RunStartup = _runStartupSnapshot;
+        LogonTask = _logonTaskSnapshot;
     }
 
     partial void OnBackdropTypeIndexChanged(int value)

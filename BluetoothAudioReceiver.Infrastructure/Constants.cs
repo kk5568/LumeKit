@@ -15,11 +15,24 @@ public static class Constants
 
     public const string StartupTaskId = "StartAppOnLoginTask";
 
-    public const string StartupRegistryKey = BluetoothAudioReceiver;
+#if DEBUG
+    // Debug builds own an independent autostart slot so they never fight the installed build over
+    // the same Run value or scheduled task. With no entry created by default, debug starts OFF.
+    private const string StartupIdentitySuffix = " (Debug)";
+#else
+    private const string StartupIdentitySuffix = "";
+#endif
 
-    public const string StartupLogonTaskName = $"{BluetoothAudioReceiver} Startup";
+    // Names debug builds used before the per-build split. Only ever cleaned up, never created.
+    public const string LegacyStartupRegistryKey = BluetoothAudioReceiver;
 
-    public const string StartupLogonTaskDesc = $"{BluetoothAudioReceiver} Auto Startup";
+    public const string LegacyStartupLogonTaskName = $"{BluetoothAudioReceiver} Startup";
+
+    public const string StartupRegistryKey = BluetoothAudioReceiver + StartupIdentitySuffix;
+
+    public const string StartupLogonTaskName = $"{BluetoothAudioReceiver} Startup{StartupIdentitySuffix}";
+
+    public const string StartupLogonTaskDesc = $"{BluetoothAudioReceiver} Auto Startup{StartupIdentitySuffix}";
 
     #endregion
 

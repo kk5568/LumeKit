@@ -2,8 +2,7 @@
   
   <PropertyGroup>
     <!-- General Properties -->
-    <OutputType Condition="'$(Configuration)' != 'Release'">Exe</OutputType><!-- Debug console startup, as used by 16.5 -->
-    <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType><!-- Release Windows App -->
+    <OutputType>WinExe</OutputType><!-- Debug 也不要命令行窗口，统一按 Windows 程序启动 -->
     <Title>LumeKit</Title>
     <ApplicationIcon Condition="'$(Configuration)'=='Debug'">Assets\speakericon3_32x32.ico</ApplicationIcon>
     <ApplicationIcon Condition="'$(Configuration)'=='Release'">Assets\speakericon3_32x32.ico</ApplicationIcon>
