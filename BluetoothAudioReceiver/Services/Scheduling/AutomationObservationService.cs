@@ -3,6 +3,7 @@ using BluetoothAudioReceiver.Automation;
 using BluetoothAudioReceiver.Automation.Models;
 using BluetoothAudioReceiver.Contracts.Services;
 using BluetoothAudioReceiver.Core.Contracts.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Serilog;
 using Windows.Devices.Enumeration;
@@ -23,7 +24,9 @@ internal sealed class AutomationObservationService : IDisposable
     private readonly IDisplayProvider _displayProvider;
     private readonly AutoDayNightService _autoDayNightService;
     private readonly IAppSettingsService _appSettingsService;
+    private readonly IAutomationPipelineRepository _pipelineRepository;
     private readonly AutomationGameModeDecisionService _gameModeDecisionService;
+    private readonly PerformanceObservationSampler _performanceSampler;
     private readonly AutomationObservationGetterSelector _getterSelector;
     private readonly IAutomationObservationCollector _observationCollector;
     private readonly AutomationObservationStateProcessor _observationProcessor;
@@ -34,19 +37,29 @@ internal sealed class AutomationObservationService : IDisposable
     private readonly AutomationSunObservationSource _sunObservationSource;
     private readonly AutomationProxyObservationSource _proxyObservationSource;
     private readonly AutomationSessionObservationSource _sessionObservationSource;
+    private readonly ObservationDemandRegistry _demandRegistry;
 
     private CancellationTokenSource? _cts;
+    private CancellationTokenSource? _sunLoopCts;
     private Task? _sunLoopTask;
-    private Task? _performanceModeLoopTask;
     private Task? _proxyWatchTask;
+    private CancellationTokenSource? _proxyWatchCts;
+    private bool _proxyWatchRunning;
+    private bool _processWatchersRunning;
+    private bool _sunLoopRunning;
+    private readonly object _sourceSyncLock = new();
+    private CancellationTokenSource? _sourceSyncDebounceCts;
     private volatile bool _isLocked;
     private AutomationDynamicContext _lastPublishedContext = new();
     private string? _lastObservedForegroundWindowTitle;
     private ManagementEventWatcher? _processStartedWatcher;
     private ManagementEventWatcher? _processStoppedWatcher;
     private bool _started;
-    private static readonly TimeSpan PerformanceModeCandidatePollInterval = TimeSpan.FromMilliseconds(500);
-    private static readonly TimeSpan PerformanceModeActivePollInterval = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan ObservationCoalesceDelay = TimeSpan.FromMilliseconds(200);
+    private readonly object _refreshSync = new();
+    private readonly List<string> _pendingReasons = [];
+    private Guid? _pendingCorrelationId;
+    private bool _refreshPending;
 
     public AutomationObservationService(
         IAutomationSystemContextHub systemContextHub,
@@ -57,8 +70,11 @@ internal sealed class AutomationObservationService : IDisposable
         IDisplayProvider displayProvider,
         AutoDayNightService autoDayNightService,
         IAppSettingsService appSettingsService,
+        IAutomationPipelineRepository pipelineRepository,
         AutomationGameModeDecisionService gameModeDecisionService,
-        AutomationObservationGetterSelector getterSelector)
+        PerformanceObservationSampler performanceSampler,
+        AutomationObservationGetterSelector getterSelector,
+        ObservationDemandRegistry demandRegistry)
     {
         _systemContextHub = systemContextHub;
         _triggerBus = triggerBus;
@@ -67,7 +83,10 @@ internal sealed class AutomationObservationService : IDisposable
         _displayProvider = displayProvider;
         _autoDayNightService = autoDayNightService;
         _appSettingsService = appSettingsService;
+        _pipelineRepository = pipelineRepository;
+        _demandRegistry = demandRegistry;
         _gameModeDecisionService = gameModeDecisionService;
+        _performanceSampler = performanceSampler;
         _getterSelector = getterSelector;
         _observationPublisher = new AutomationObservationPublisher(
             _triggerBus,
@@ -83,7 +102,7 @@ internal sealed class AutomationObservationService : IDisposable
             ForegroundWindowProbe.IsForegroundFullscreen);
         _observationDispatcher = new AutomationObservationEventDispatcher(DistributeInformation);
         _requestPlanner = new AutomationObservationRequestPlanner(
-            _appSettingsService,
+            demandRegistry,
             ForegroundWindowProbe.GetForegroundProcessName,
             ForegroundWindowProbe.GetForegroundWindowTitle,
             ForegroundWindowProbe.IsForegroundFullscreen,
@@ -113,7 +132,11 @@ internal sealed class AutomationObservationService : IDisposable
         _sessionObservationSource = new AutomationSessionObservationSource(
             _observationPublisher,
             () => _isLocked,
-            value => _isLocked = value,
+            value =>
+            {
+                _isLocked = value;
+                _performanceSampler.SetPaused(value);
+            },
             (reason, correlationId) => RequestObservationRefreshAsync(reason, correlationId));
     }
 
@@ -127,50 +150,228 @@ internal sealed class AutomationObservationService : IDisposable
         _started = true;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        _subscriptionManager.Subscribe();
-        StartProcessLifecycleWatchers();
+        // 先按各模块登记的需求把事件源和后台循环挂上，避免启动阶段漏事件。
+        // 启动时的全量采集紧接着做，所以这里不需要再补一次刷新。
+        SyncObservationSources(requestRefreshWhenStarted: false);
 
-            await PublishCurrentStateAsync(_cts.Token, CollectInformationRequest("startup"));
+        await PublishCurrentStateAsync(_cts.Token, CollectInformationRequest("startup"));
 
-        _sunLoopTask = _sunObservationSource.RunSunLoopAsync(_cts.Token);
-        _performanceModeLoopTask = RunPerformanceModeLoopAsync(_cts.Token);
-        _proxyWatchTask = _proxyObservationSource.RunProxyRegistryWatchAsync(_cts.Token);
+        _pipelineRepository.PipelinesChanged += OnPipelinesChanged;
+
+        _performanceSampler.Start(_observationProcessor.CapturePerformanceSample);
         _log.Information("Automation observation service started with event-driven listeners");
+    }
+
+    /// <summary>
+    /// 把事件订阅和后台循环调整到「当前所有模块登记的并集」。
+    /// 规则、模块开关变了就再调一次，只会对差异做挂载和卸载。
+    /// </summary>
+    private void SyncObservationSources(bool requestRefreshWhenStarted = true)
+    {
+        IReadOnlyCollection<ObservationSourceKind> sources;
+        try
+        {
+            sources = _demandRegistry.GetSourceUnion();
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Failed to collect observation source demand union");
+            return;
+        }
+
+        _subscriptionManager.Apply(sources);
+        ApplyProcessTraceDemand(sources.Contains(ObservationSourceKind.ProcessLifecycle), requestRefreshWhenStarted);
+        ApplySunScheduleDemand(sources.Contains(ObservationSourceKind.SunScheduleLoop), requestRefreshWhenStarted);
+        ApplyProxyWatchDemand(sources.Contains(ObservationSourceKind.ProxyRegistryWatch));
+    }
+
+    private void ApplyProxyWatchDemand(bool needed)
+    {
+        if (needed == _proxyWatchRunning)
+        {
+            return;
+        }
+
+        if (needed)
+        {
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts?.Token ?? CancellationToken.None);
+            _proxyWatchCts = cts;
+            _proxyWatchRunning = true;
+            _proxyWatchTask = _proxyObservationSource.RunProxyRegistryWatchAsync(cts.Token);
+            _log.Information("Automation proxy registry watch started on demand");
+            return;
+        }
+
+        _proxyWatchRunning = false;
+
+        var watchTask = _proxyWatchTask;
+        var watchCts = _proxyWatchCts;
+        _proxyWatchTask = null;
+        _proxyWatchCts = null;
+
+        watchCts?.Cancel();
+        if (watchCts is not null)
+        {
+            if (watchTask is null)
+            {
+                watchCts.Dispose();
+            }
+            else
+            {
+                _ = watchTask.ContinueWith(
+                    _ => watchCts.Dispose(),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+        }
+
+        _log.Information("Automation proxy registry watch stopped: no module needs it");
+    }
+
+    private void ApplyProcessTraceDemand(bool needed, bool requestRefreshWhenStarted)
+    {
+        if (needed == _processWatchersRunning)
+        {
+            return;
+        }
+
+        if (needed)
+        {
+            StartProcessLifecycleWatchers();
+            _processWatchersRunning = _processStartedWatcher is not null;
+
+            if (_processWatchersRunning)
+            {
+                _log.Information("Automation process lifecycle watchers started on demand");
+
+                if (requestRefreshWhenStarted)
+                {
+                    // 关着的这段时间可能漏了事件，补一次全量采集。
+                    RequestRefreshInBackground("observer-resumed");
+                }
+            }
+
+            return;
+        }
+
+        StopProcessLifecycleWatchers();
+        _processWatchersRunning = false;
+        _log.Information("Automation process lifecycle watchers stopped: no enabled pipeline needs them");
+    }
+
+    private void ApplySunScheduleDemand(bool needed, bool requestRefreshWhenStarted)
+    {
+        if (needed == _sunLoopRunning)
+        {
+            return;
+        }
+
+        if (needed)
+        {
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts?.Token ?? CancellationToken.None);
+            _sunLoopCts = cts;
+            _sunLoopRunning = true;
+            _sunLoopTask = _sunObservationSource.RunSunLoopAsync(cts.Token);
+            _log.Information("Automation sun schedule loop started on demand");
+
+            if (requestRefreshWhenStarted)
+            {
+                RequestRefreshInBackground("observer-resumed");
+            }
+
+            return;
+        }
+
+        _sunLoopRunning = false;
+
+        var loopTask = _sunLoopTask;
+        var loopCts = _sunLoopCts;
+        _sunLoopTask = null;
+        _sunLoopCts = null;
+
+        loopCts?.Cancel();
+
+        if (loopCts is not null)
+        {
+            if (loopTask is null)
+            {
+                loopCts.Dispose();
+            }
+            else
+            {
+                _ = loopTask.ContinueWith(
+                    _ => loopCts.Dispose(),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+        }
+
+        _log.Information("Automation sun schedule loop stopped: no enabled pipeline needs it");
+    }
+
+    private void RequestRefreshInBackground(string reason)
+        => _ = RequestObservationRefreshAsync(reason, Guid.NewGuid());
+
+    private void OnPipelinesChanged(object? sender, EventArgs e)
+    {
+        CancellationTokenSource debounceCts;
+        lock (_sourceSyncLock)
+        {
+            _sourceSyncDebounceCts?.Cancel();
+            _sourceSyncDebounceCts?.Dispose();
+            debounceCts = CancellationTokenSource.CreateLinkedTokenSource(_cts?.Token ?? CancellationToken.None);
+            _sourceSyncDebounceCts = debounceCts;
+        }
+
+        _ = RunDebouncedSourceSyncAsync(debounceCts.Token);
+    }
+
+    private async Task RunDebouncedSourceSyncAsync(CancellationToken token)
+    {
+        try
+        {
+            // 连续增删规则时只重算最后一次。
+            await Task.Delay(TimeSpan.FromSeconds(2), token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            SyncObservationSources();
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Failed to sync demand-driven observation sources");
+        }
     }
 
     public void InitializeForWindow(Views.Windows.MainWindow window)
     {
         _sessionObservationSource.InitializeForWindow(window);
+
+        // 用户改完设置回到主窗口时重算一次需求：模块开关（比如代理通知）变了，
+        // 对应的事件源该挂就挂、该摘就摘。防抖后只算最后那次。
+        window.Activated += OnMainWindowActivated;
     }
 
-    private async Task RunPerformanceModeLoopAsync(CancellationToken token)
+    private void OnMainWindowActivated(object sender, WindowActivatedEventArgs args)
     {
-        while (!token.IsCancellationRequested)
+        if (!_started)
         {
-            try
-            {
-                if (_isLocked)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(30), token);
-                    continue;
-                }
-
-                _gameModeDecisionService.Evaluate(_observationProcessor.CapturePerformanceSample);
-                var pollInterval = _gameModeDecisionService.IsAnyModeActive()
-                    ? PerformanceModeActivePollInterval
-                    : PerformanceModeCandidatePollInterval;
-                await Task.Delay(pollInterval, token);
-            }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _log.Warning(ex, "Automation performance-mode loop failed");
-                await Task.Delay(TimeSpan.FromSeconds(2), token);
-            }
+            return;
         }
+
+        OnPipelinesChanged(this, EventArgs.Empty);
     }
 
     private async void OnAudioPlaybackDeviceConnected(object? sender, DeviceInformation device)
@@ -299,7 +500,6 @@ internal sealed class AutomationObservationService : IDisposable
                 ["processName"] = ForegroundWindowProbe.GetForegroundProcessName()
             },
             correlationId);
-        SchedulePerformanceModeEvaluation();
         await RequestObservationRefreshAsync("foreground-window-changed", correlationId);
     }
 
@@ -310,13 +510,57 @@ internal sealed class AutomationObservationService : IDisposable
             return;
         }
 
+        // 合并：200 毫秒内来的多个事件只采一次，避免快速切窗时连采好几轮。
+        lock (_refreshSync)
+        {
+            _pendingReasons.Add(reason);
+            if (correlationId.HasValue)
+            {
+                _pendingCorrelationId = correlationId;
+            }
+
+            if (_refreshPending)
+            {
+                return;
+            }
+
+            _refreshPending = true;
+        }
+
         var token = _cts?.Token ?? CancellationToken.None;
         try
         {
-            var request = CollectInformationRequest(reason, correlationId);
+            await Task.Delay(ObservationCoalesceDelay, token);
+        }
+        catch (OperationCanceledException)
+        {
+            lock (_refreshSync)
+            {
+                _refreshPending = false;
+                _pendingReasons.Clear();
+                _pendingCorrelationId = null;
+            }
+
+            return;
+        }
+
+        string mergedReason;
+        Guid? mergedCorrelationId;
+        lock (_refreshSync)
+        {
+            _refreshPending = false;
+            mergedReason = string.Join("+", _pendingReasons.Distinct(StringComparer.OrdinalIgnoreCase));
+            _pendingReasons.Clear();
+            mergedCorrelationId = _pendingCorrelationId;
+            _pendingCorrelationId = null;
+        }
+
+        try
+        {
+            var request = CollectInformationRequest(mergedReason, mergedCorrelationId);
             _log.Debug(
                 "Automation observation refresh requested. Reason={Reason}, Scene={Scene}, Items={Items}",
-                reason,
+                mergedReason,
                 request.Scene,
                 string.Join(",", request.Items));
             await PublishCurrentStateAsync(token, request);
@@ -330,6 +574,24 @@ internal sealed class AutomationObservationService : IDisposable
         => _requestPlanner.Create(reason, correlationId, _isLocked);
 
     private async Task PublishCurrentStateAsync(CancellationToken token, ObservationRequest request)
+    {
+        // 快速项（进程、窗口、蓝牙缓存、电源、主题）先采先发，让事件尽快进自动化；
+        // 慢项（亮度、网络、代理、音频路由）随后补采再发一次，发布层只发真正变了的部分。
+        var fastItems = request.Items.Where(item => !AutomationObservationGetterSelector.IsSlowKind(item)).ToArray();
+        var slowItems = request.Items.Where(AutomationObservationGetterSelector.IsSlowKind).ToArray();
+
+        if (fastItems.Length > 0)
+        {
+            await CollectAndPublishAsync(token, request with { Items = fastItems });
+        }
+
+        if (slowItems.Length > 0)
+        {
+            ScheduleSlowCollection(token, request with { Items = slowItems });
+        }
+    }
+
+    private async Task CollectAndPublishAsync(CancellationToken token, ObservationRequest request)
     {
         await _observationPublisher.PublishGate.WaitAsync(token);
         try
@@ -354,6 +616,71 @@ internal sealed class AutomationObservationService : IDisposable
         finally
         {
             _observationPublisher.PublishGate.Release();
+        }
+    }
+
+    private readonly object _slowCollectionSync = new();
+    private readonly HashSet<ObservationInfoKind> _pendingSlowItems = [];
+    private ObservationRequest? _pendingSlowRequest;
+    private bool _slowCollectionRunning;
+
+    private void ScheduleSlowCollection(CancellationToken token, ObservationRequest request)
+    {
+        lock (_slowCollectionSync)
+        {
+            foreach (var item in request.Items)
+            {
+                _pendingSlowItems.Add(item);
+            }
+
+            _pendingSlowRequest = request;
+
+            if (_slowCollectionRunning)
+            {
+                return;
+            }
+
+            _slowCollectionRunning = true;
+        }
+
+        _ = Task.Run(() => RunSlowCollectionAsync(token), CancellationToken.None);
+    }
+
+    private async Task RunSlowCollectionAsync(CancellationToken token)
+    {
+        while (true)
+        {
+            ObservationRequest request;
+            lock (_slowCollectionSync)
+            {
+                if (_pendingSlowItems.Count == 0 || _pendingSlowRequest is null)
+                {
+                    _pendingSlowItems.Clear();
+                    _pendingSlowRequest = null;
+                    _slowCollectionRunning = false;
+                    return;
+                }
+
+                request = _pendingSlowRequest with { Items = _pendingSlowItems.ToArray() };
+                _pendingSlowItems.Clear();
+                _pendingSlowRequest = null;
+            }
+
+            try
+            {
+                await CollectAndPublishAsync(token, request);
+            }
+            catch (OperationCanceledException)
+            {
+                lock (_slowCollectionSync)
+                {
+                    _pendingSlowItems.Clear();
+                    _pendingSlowRequest = null;
+                    _slowCollectionRunning = false;
+                }
+
+                return;
+            }
         }
     }
 
@@ -486,7 +813,6 @@ internal sealed class AutomationObservationService : IDisposable
             occurredAt);
 
         _ = RequestObservationRefreshAsync("process-started", correlationId);
-        SchedulePerformanceModeEvaluation();
     }
 
     private void OnProcessStopped(object sender, EventArrivedEventArgs e)
@@ -535,8 +861,26 @@ internal sealed class AutomationObservationService : IDisposable
         }
 
         _started = false;
-        _subscriptionManager.Unsubscribe();
+        _subscriptionManager.UnsubscribeAll();
+        _pipelineRepository.PipelinesChanged -= OnPipelinesChanged;
+
+        lock (_sourceSyncLock)
+        {
+            _sourceSyncDebounceCts?.Cancel();
+            _sourceSyncDebounceCts?.Dispose();
+            _sourceSyncDebounceCts = null;
+        }
+
+        _processWatchersRunning = false;
         StopProcessLifecycleWatchers();
+
+        _sunLoopRunning = false;
+        _sunLoopCts?.Cancel();
+        _sunLoopCts = null;
+
+        _proxyWatchRunning = false;
+        _proxyWatchCts?.Cancel();
+        _proxyWatchCts = null;
 
         _cts?.Cancel();
         _cts?.Dispose();
@@ -548,14 +892,7 @@ internal sealed class AutomationObservationService : IDisposable
 
         _observationPublisher.Dispose();
         _sunObservationSource.Dispose();
-    }
-
-    private void SchedulePerformanceModeEvaluation()
-    {
-        if (_started)
-        {
-            _gameModeDecisionService.Evaluate(_observationProcessor.CapturePerformanceSample);
-        }
+        _performanceSampler.Dispose();
     }
 
 }

@@ -22,7 +22,7 @@
         <CornerRadius x:Key="NodeCardCornerRadius">12</CornerRadius>
         <CornerRadius x:Key="SectionBadgeCornerRadius">10</CornerRadius>
         <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
-        <x:Double x:Key="EditorMaxWidth">1720</x:Double>
+        <x:Double x:Key="EditorMaxWidth">1200</x:Double>
         <x:Double x:Key="ParameterControlHeight">32</x:Double>
         <x:Double x:Key="ParameterSelectionBoxWidth">200</x:Double>
         <x:Double x:Key="ParameterTextBoxWidth">260</x:Double>
@@ -65,7 +65,7 @@
 
         <Style x:Key="AutomationPropertyComboBoxStyle" TargetType="ComboBox">
             <Setter Property="Height" Value="{StaticResource ParameterControlHeight}" />
-            <Setter Property="Width" Value="220" />
+            <Setter Property="Width" Value="180" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="HorizontalContentAlignment" Value="Right" />
             <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
@@ -493,7 +493,6 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBox
-                        Width="920"
                         Text="{Binding ViewModel.AutomationName, ElementName=RootPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         FontFamily="Segoe UI Variable Text"
                         FontSize="18"
@@ -545,18 +544,11 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="悬浮通知" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                                    <TextBlock
-                                        Width="24"
-                                        Text="{Binding ViewModel.ExecutionNotificationEnabledText, ElementName=RootPage, Mode=OneWay}"
-                                        VerticalAlignment="Center"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <ToggleSwitch
-                                        Width="80"
-                                        IsOn="{Binding ViewModel.ExecutionNotificationEnabled, ElementName=RootPage, Mode=TwoWay}"
-                                        OnContent=""
-                                        OffContent="" />
-                                </StackPanel>
+                                <ComboBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource AutomationPropertyComboBoxStyle}"
+                                    ItemsSource="{Binding ViewModel.SwitchOptions, ElementName=RootPage}"
+                                    SelectedItem="{Binding ViewModel.ExecutionNotificationEnabledText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
                             <Grid ColumnSpacing="12">
@@ -565,18 +557,11 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="开机后运行" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                                    <TextBlock
-                                        Width="24"
-                                        Text="{Binding ViewModel.RunOnStartupEnabledText, ElementName=RootPage, Mode=OneWay}"
-                                        VerticalAlignment="Center"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <ToggleSwitch
-                                        Width="80"
-                                        IsOn="{Binding ViewModel.RunOnStartupEnabled, ElementName=RootPage, Mode=TwoWay}"
-                                        OnContent=""
-                                        OffContent="" />
-                                </StackPanel>
+                                <ComboBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource AutomationPropertyComboBoxStyle}"
+                                    ItemsSource="{Binding ViewModel.SwitchOptions, ElementName=RootPage}"
+                                    SelectedItem="{Binding ViewModel.RunOnStartupEnabledText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
                             <Grid ColumnSpacing="12">
@@ -585,18 +570,11 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="只允许一次" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                                    <TextBlock
-                                        Width="24"
-                                        Text="{Binding ViewModel.OnceOnlyEnabledText, ElementName=RootPage, Mode=OneWay}"
-                                        VerticalAlignment="Center"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <ToggleSwitch
-                                        Width="80"
-                                        IsOn="{Binding ViewModel.OnceOnlyEnabled, ElementName=RootPage, Mode=TwoWay}"
-                                        OnContent=""
-                                        OffContent="" />
-                                </StackPanel>
+                                <ComboBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource AutomationPropertyComboBoxStyle}"
+                                    ItemsSource="{Binding ViewModel.SwitchOptions, ElementName=RootPage}"
+                                    SelectedItem="{Binding ViewModel.OnceOnlyEnabledText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
                             <Grid ColumnSpacing="12">

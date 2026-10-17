@@ -47,6 +47,16 @@ internal sealed class AutomationObservationGetterSelector
         _getters = getters.ToArray();
     }
 
+    /// <summary>
+    /// 慢采集：要碰 COM、注册表或网络栈，耗时不可控。
+    /// 这类项放到快速项后面补采，避免挡住一次快速事件的分发。
+    /// </summary>
+    public static bool IsSlowKind(ObservationInfoKind kind)
+        => kind is ObservationInfoKind.Brightness
+            or ObservationInfoKind.NetworkState
+            or ObservationInfoKind.ProxyState
+            or ObservationInfoKind.AudioRoute;
+
     public IReadOnlyList<ObservationGetterPlan> BuildPlan(IReadOnlyList<ObservationInfoKind> requestedItems)
     {
         var groups = new Dictionary<IAutomationObservationGetter, HashSet<ObservationInfoKind>>();

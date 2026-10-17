@@ -45,6 +45,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             ["12 小时"] = 12 * 60 * 60
         };
     private static readonly IReadOnlyList<string> RepeatExecutionOptionValues = ["允许", "不允许"];
+    private static readonly IReadOnlyList<string> SwitchOptionValues = ["开", "关"];
     private static readonly IReadOnlyList<string> RunTimeModeOptionValues = ["全天", "仅白天", "仅夜晚"];
 
     private readonly IAutomationPipelineRepository _pipelineRepository;
@@ -179,6 +180,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     public IReadOnlyList<int> PriorityOptions => PriorityOptionValues;
     public IReadOnlyList<string> CooldownOptions => CooldownOptionValues.Keys.ToArray();
     public IReadOnlyList<string> RepeatExecutionOptions => RepeatExecutionOptionValues;
+    public IReadOnlyList<string> SwitchOptions => SwitchOptionValues;
     public IReadOnlyList<string> RunTimeModeOptions => RunTimeModeOptionValues;
 
     [ObservableProperty]
@@ -229,11 +231,47 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         }
     }
 
-    public string ExecutionNotificationEnabledText => ExecutionNotificationEnabled ? "开" : "关";
+    public string ExecutionNotificationEnabledText
+    {
+        get => ExecutionNotificationEnabled ? "开" : "关";
+        set
+        {
+            var next = string.Equals(value, "开", StringComparison.Ordinal);
+            if (ExecutionNotificationEnabled != next)
+            {
+                ExecutionNotificationEnabled = next;
+                OnPropertyChanged();
+            }
+        }
+    }
 
-    public string RunOnStartupEnabledText => RunOnStartupEnabled ? "开" : "关";
+    public string RunOnStartupEnabledText
+    {
+        get => RunOnStartupEnabled ? "开" : "关";
+        set
+        {
+            var next = string.Equals(value, "开", StringComparison.Ordinal);
+            if (RunOnStartupEnabled != next)
+            {
+                RunOnStartupEnabled = next;
+                OnPropertyChanged();
+            }
+        }
+    }
 
-    public string OnceOnlyEnabledText => OnceOnlyEnabled ? "开" : "关";
+    public string OnceOnlyEnabledText
+    {
+        get => OnceOnlyEnabled ? "开" : "关";
+        set
+        {
+            var next = string.Equals(value, "开", StringComparison.Ordinal);
+            if (OnceOnlyEnabled != next)
+            {
+                OnceOnlyEnabled = next;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public string CooldownText
     {

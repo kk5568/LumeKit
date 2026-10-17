@@ -12,6 +12,10 @@ using Serilog;
 
 namespace BluetoothAudioReceiver.Services;
 
+/// <summary>
+/// 按需求并集订阅系统事件。每个源单独挂、单独摘，重复调用同一种需求不会有副作用，
+/// 所以上层可以随时把最新的并集丢进来。
+/// </summary>
 internal sealed class AutomationObservationSubscriptionManager
 {
     private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(AutomationObservationSubscriptionManager));
@@ -29,7 +33,8 @@ internal sealed class AutomationObservationSubscriptionManager
     private readonly EventHandler _systemTimeChanged;
     private readonly UserPreferenceChangedEventHandler _userPreferenceChanged;
     private readonly EventHandler<IntPtr> _foregroundWindowChanged;
-    private bool _subscribed;
+    private readonly HashSet<ObservationSourceKind> _attached = [];
+    private readonly object _syncRoot = new();
 
     public AutomationObservationSubscriptionManager(
         IAudioPlaybackConnectionService audioPlaybackConnectionService,
@@ -63,66 +68,154 @@ internal sealed class AutomationObservationSubscriptionManager
         _foregroundWindowChanged = foregroundWindowChanged;
     }
 
-    public void Subscribe()
+    /// <summary>
+    /// 把订阅调整到「正好等于这份需求」。已经挂上的不会重复挂，不再需要的会摘掉。
+    /// </summary>
+    public void Apply(IReadOnlyCollection<ObservationSourceKind> needed)
     {
-        if (_subscribed)
-        {
-            _log.Debug("Automation observation listeners already subscribed");
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(needed);
+        var wanted = needed as ISet<ObservationSourceKind> ?? new HashSet<ObservationSourceKind>(needed);
 
-        _log.Debug(
-            "Starting automation observation listener registration. ProcessId={ProcessId}, ThreadId={ThreadId}",
-            Environment.ProcessId,
-            Environment.CurrentManagedThreadId);
-        _subscribed = true;
-        _audioPlaybackConnectionService.DeviceConnected += _audioConnected;
-        _audioPlaybackConnectionService.DeviceDisconnected += _audioDisconnected;
-        _bluetoothRadioMonitorService.StateChanged += _bluetoothStateChanged;
-        _autoDayNightService.StateChanged += _sunStateChanged;
-        PowerManager.PowerSupplyStatusChanged += _powerSnapshotChanged;
-        PowerManager.RemainingChargePercentChanged += _powerSnapshotChanged;
-        MediaDevice.DefaultAudioRenderDeviceChanged += _audioRenderDeviceChanged;
-        NetworkInformation.NetworkStatusChanged += _networkStatusChanged;
-        SystemEvents.PowerModeChanged += _powerModeChanged;
-        SystemEvents.TimeChanged += _systemTimeChanged;
-        SystemEvents.UserPreferenceChanged += _userPreferenceChanged;
-        try
+        lock (_syncRoot)
         {
-            BackgroundEfficiencyWindowHook.SubscribeToWindowEvents();
-            BackgroundEfficiencyWindowHook.SystemForegroundWindowChanged += _foregroundWindowChanged;
-        }
-        catch
-        {
-            // The remaining system listeners must continue if the foreground hook is unavailable.
-        }
+            foreach (var source in Enum.GetValues<ObservationSourceKind>())
+            {
+                var want = wanted.Contains(source);
+                var have = _attached.Contains(source);
+                if (want == have)
+                {
+                    continue;
+                }
 
-        _log.Information("Automation observation listeners registered");
+                if (want)
+                {
+                    if (TryAttach(source))
+                    {
+                        _attached.Add(source);
+                        _log.Information("Observation source attached. Source={Source}", source);
+                    }
+                }
+                else
+                {
+                    TryDetach(source);
+                    _attached.Remove(source);
+                    _log.Information("Observation source detached. Source={Source}", source);
+                }
+            }
+        }
     }
 
-    public void Unsubscribe()
+    /// <summary>摘掉全部订阅（退出时用）。</summary>
+    public void UnsubscribeAll()
     {
-        if (!_subscribed)
+        lock (_syncRoot)
         {
-            _log.Debug("Automation observation listeners already unsubscribed");
-            return;
+            foreach (var source in _attached.ToArray())
+            {
+                TryDetach(source);
+            }
+
+            _attached.Clear();
         }
 
-        _log.Debug("Starting automation observation listener removal");
-        _audioPlaybackConnectionService.DeviceConnected -= _audioConnected;
-        _audioPlaybackConnectionService.DeviceDisconnected -= _audioDisconnected;
-        _bluetoothRadioMonitorService.StateChanged -= _bluetoothStateChanged;
-        _autoDayNightService.StateChanged -= _sunStateChanged;
-        PowerManager.PowerSupplyStatusChanged -= _powerSnapshotChanged;
-        PowerManager.RemainingChargePercentChanged -= _powerSnapshotChanged;
-        MediaDevice.DefaultAudioRenderDeviceChanged -= _audioRenderDeviceChanged;
-        NetworkInformation.NetworkStatusChanged -= _networkStatusChanged;
-        SystemEvents.PowerModeChanged -= _powerModeChanged;
-        SystemEvents.TimeChanged -= _systemTimeChanged;
-        SystemEvents.UserPreferenceChanged -= _userPreferenceChanged;
-        BackgroundEfficiencyWindowHook.SystemForegroundWindowChanged -= _foregroundWindowChanged;
-        BackgroundEfficiencyWindowHook.UnsubscribeWindowEvents();
-        _subscribed = false;
         _log.Information("Automation observation listeners removed");
+    }
+
+    private bool TryAttach(ObservationSourceKind source)
+    {
+        try
+        {
+            switch (source)
+            {
+                case ObservationSourceKind.AudioPlaybackDevices:
+                    _audioPlaybackConnectionService.DeviceConnected += _audioConnected;
+                    _audioPlaybackConnectionService.DeviceDisconnected += _audioDisconnected;
+                    return true;
+                case ObservationSourceKind.BluetoothRadioState:
+                    _bluetoothRadioMonitorService.StateChanged += _bluetoothStateChanged;
+                    return true;
+                case ObservationSourceKind.SunScheduleState:
+                    _autoDayNightService.StateChanged += _sunStateChanged;
+                    return true;
+                case ObservationSourceKind.PowerSupply:
+                    PowerManager.PowerSupplyStatusChanged += _powerSnapshotChanged;
+                    PowerManager.RemainingChargePercentChanged += _powerSnapshotChanged;
+                    return true;
+                case ObservationSourceKind.AudioRenderDevice:
+                    MediaDevice.DefaultAudioRenderDeviceChanged += _audioRenderDeviceChanged;
+                    return true;
+                case ObservationSourceKind.NetworkStatus:
+                    NetworkInformation.NetworkStatusChanged += _networkStatusChanged;
+                    return true;
+                case ObservationSourceKind.SessionPowerMode:
+                    SystemEvents.PowerModeChanged += _powerModeChanged;
+                    return true;
+                case ObservationSourceKind.SystemTime:
+                    SystemEvents.TimeChanged += _systemTimeChanged;
+                    return true;
+                case ObservationSourceKind.UserPreference:
+                    SystemEvents.UserPreferenceChanged += _userPreferenceChanged;
+                    return true;
+                case ObservationSourceKind.ForegroundWindow:
+                    BackgroundEfficiencyWindowHook.SubscribeToWindowEvents();
+                    BackgroundEfficiencyWindowHook.SystemForegroundWindowChanged += _foregroundWindowChanged;
+                    return true;
+                default:
+                    // 进程监听、日出循环、注册表代理监听由服务自己按需启动，不走事件订阅。
+                    return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Failed to attach observation source. Source={Source}", source);
+            return false;
+        }
+    }
+
+    private void TryDetach(ObservationSourceKind source)
+    {
+        try
+        {
+            switch (source)
+            {
+                case ObservationSourceKind.AudioPlaybackDevices:
+                    _audioPlaybackConnectionService.DeviceConnected -= _audioConnected;
+                    _audioPlaybackConnectionService.DeviceDisconnected -= _audioDisconnected;
+                    break;
+                case ObservationSourceKind.BluetoothRadioState:
+                    _bluetoothRadioMonitorService.StateChanged -= _bluetoothStateChanged;
+                    break;
+                case ObservationSourceKind.SunScheduleState:
+                    _autoDayNightService.StateChanged -= _sunStateChanged;
+                    break;
+                case ObservationSourceKind.PowerSupply:
+                    PowerManager.PowerSupplyStatusChanged -= _powerSnapshotChanged;
+                    PowerManager.RemainingChargePercentChanged -= _powerSnapshotChanged;
+                    break;
+                case ObservationSourceKind.AudioRenderDevice:
+                    MediaDevice.DefaultAudioRenderDeviceChanged -= _audioRenderDeviceChanged;
+                    break;
+                case ObservationSourceKind.NetworkStatus:
+                    NetworkInformation.NetworkStatusChanged -= _networkStatusChanged;
+                    break;
+                case ObservationSourceKind.SessionPowerMode:
+                    SystemEvents.PowerModeChanged -= _powerModeChanged;
+                    break;
+                case ObservationSourceKind.SystemTime:
+                    SystemEvents.TimeChanged -= _systemTimeChanged;
+                    break;
+                case ObservationSourceKind.UserPreference:
+                    SystemEvents.UserPreferenceChanged -= _userPreferenceChanged;
+                    break;
+                case ObservationSourceKind.ForegroundWindow:
+                    BackgroundEfficiencyWindowHook.SystemForegroundWindowChanged -= _foregroundWindowChanged;
+                    BackgroundEfficiencyWindowHook.UnsubscribeWindowEvents();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Failed to detach observation source. Source={Source}", source);
+        }
     }
 }

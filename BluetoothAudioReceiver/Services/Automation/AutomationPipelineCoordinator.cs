@@ -17,6 +17,8 @@ internal sealed class AutomationPipelineCoordinator
     private readonly AutomationPipelineExecutor _pipelineExecutor;
     private readonly Dictionary<Guid, DateTimeOffset> _lastRunAt = [];
     private readonly DateTimeOffset _startedAt = DateTimeOffset.Now;
+    private readonly object _indexSync = new();
+    private PipelineIndex? _index;
 
     public AutomationPipelineCoordinator(
         IAutomationTriggerRegistry triggerRegistry,
@@ -34,6 +36,15 @@ internal sealed class AutomationPipelineCoordinator
         _triggerMatcher = triggerMatcher;
         _decisionService = decisionService;
         _pipelineExecutor = pipelineExecutor;
+        _pipelineRepository.PipelinesChanged += OnPipelinesChanged;
+    }
+
+    private void OnPipelinesChanged(object? sender, EventArgs e)
+    {
+        lock (_indexSync)
+        {
+            _index = null;
+        }
     }
 
     public async Task<string?> ExecutePipelineNowAsync(AutomationPipeline pipeline)
@@ -83,7 +94,7 @@ internal sealed class AutomationPipelineCoordinator
             Guid.NewGuid());
         var blockedScopes = AutomationActionResourceScope.None;
 
-        foreach (var pipeline in GetPipelinesInSceneOrder().Where(item => item.IsEnabled && item.Options.RunOnStartupEnabled))
+        foreach (var pipeline in GetIndex().Ordered.Where(item => item.IsEnabled && item.Options.RunOnStartupEnabled))
         {
             if (!_decisionService.EvaluateConditions(pipeline.Conditions, triggerEvent, _systemContextHub.Current))
             {
@@ -134,14 +145,9 @@ internal sealed class AutomationPipelineCoordinator
             normalizedEvent.CorrelationId,
             string.Join(",", normalizedEvent.Payload.Keys));
 
-        foreach (var pipeline in GetPipelinesInSceneOrder())
+        // 只把这一类触发器下的规则拿出来比对，不再全表扫。
+        foreach (var pipeline in GetIndex().GetByTrigger(normalizedEvent.TriggerType))
         {
-            var pipelineTriggerType = _triggerRegistry.Normalize(pipeline.Trigger.TriggerType);
-            if (!_triggerRegistry.IsSupported(pipelineTriggerType) || !pipeline.IsEnabled)
-            {
-                continue;
-            }
-
             if (!_triggerMatcher.Matches(pipeline.Trigger, normalizedEvent))
             {
                 continue;
@@ -186,19 +192,73 @@ internal sealed class AutomationPipelineCoordinator
         out string message)
         => _decisionService.ShouldSkip(pipeline, triggerEvent.OccurredAt, _startedAt, _lastRunAt, out result, out message);
 
-    private IEnumerable<AutomationPipeline> GetPipelinesInSceneOrder()
+    /// <summary>
+    /// 排序结果和触发器索引都缓存，规则或场景顺序变了才重建。
+    /// </summary>
+    private PipelineIndex GetIndex()
     {
-        var sceneOrder = (_settingsService.AutomationSceneList ?? string.Empty)
+        var sceneList = _settingsService.AutomationSceneList ?? string.Empty;
+
+        lock (_indexSync)
+        {
+            if (_index is not null && string.Equals(_index.SceneSignature, sceneList, StringComparison.Ordinal))
+            {
+                return _index;
+            }
+        }
+
+        var sceneOrder = sceneList
             .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select((name, index) => new { Name = name, Index = index })
             .ToDictionary(item => item.Name, item => item.Index, StringComparer.OrdinalIgnoreCase);
 
-        return _pipelineRepository.Pipelines
+        var ordered = _pipelineRepository.Pipelines
             .Select((pipeline, index) => new { Pipeline = pipeline, Index = index })
             .OrderByDescending(item => item.Pipeline.Options?.Priority ?? 0)
-            .ThenBy(item => sceneOrder.TryGetValue(GetSceneName(item.Pipeline), out var index) ? index : int.MaxValue)
+            .ThenBy(item => sceneOrder.TryGetValue(GetSceneName(item.Pipeline), out var sceneIndex) ? sceneIndex : int.MaxValue)
             .ThenBy(item => item.Index)
-            .Select(item => item.Pipeline);
+            .Select(item => item.Pipeline)
+            .ToArray();
+
+        var byTrigger = new Dictionary<string, List<AutomationPipeline>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pipeline in ordered)
+        {
+            if (!pipeline.IsEnabled || pipeline.Trigger is null)
+            {
+                continue;
+            }
+
+            var triggerType = _triggerRegistry.Normalize(pipeline.Trigger.TriggerType);
+            if (!_triggerRegistry.IsSupported(triggerType))
+            {
+                continue;
+            }
+
+            if (!byTrigger.TryGetValue(triggerType, out var bucket))
+            {
+                bucket = [];
+                byTrigger[triggerType] = bucket;
+            }
+
+            bucket.Add(pipeline);
+        }
+
+        var index = new PipelineIndex(sceneList, ordered, byTrigger);
+        lock (_indexSync)
+        {
+            _index = index;
+        }
+
+        return index;
+    }
+
+    private sealed record PipelineIndex(
+        string SceneSignature,
+        IReadOnlyList<AutomationPipeline> Ordered,
+        IReadOnlyDictionary<string, List<AutomationPipeline>> ByTrigger)
+    {
+        public IEnumerable<AutomationPipeline> GetByTrigger(string triggerType)
+            => ByTrigger.TryGetValue(triggerType, out var bucket) ? bucket : [];
     }
 
     private static AutomationExecutionContext CreateExecutionContext(

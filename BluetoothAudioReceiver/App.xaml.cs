@@ -165,11 +165,17 @@ public partial class App : Application
                 services.AddSingleton<IAutomationObservationGetter>(sp => sp.GetRequiredService<PollingAutomationObservationGetter>());
                 services.AddSingleton<AutomationObservationGetterSelector>();
                 services.AddSingleton<IAutomationTriggerBus, AutomationTriggerBus>();
+                // 调度中心的需求登记表：各模块在这里登记要采集什么，调度中心只采并集。
+                services.AddSingleton<ObservationDemandRegistry>();
+                services.AddSingleton<ObservationDemandCatalog>();
                 services.AddSingleton<AutomationProxyNotificationPolicy>();
                 services.AddSingleton<IAutomationTriggerRegistry, AutomationTriggerRegistry>();
                 services.AddSingleton<IAutomationConditionRegistry, AutomationConditionRegistry>();
                 services.AddSingleton<IAutomationPipelineRepository, AutomationPipelineRepository>();
                 services.AddSingleton<AutomationGameModeDecisionService>();
+                // 性能采样的节拍归调度中心；自动化只在有性能模式规则时向它订阅。
+                services.AddSingleton<PerformanceObservationSampler>();
+                services.AddSingleton<AutomationPerformanceModeWatcher>();
                 services.AddSingleton<IAutomationActionProvider, AutomationNotificationActionProvider>();
                 services.AddSingleton<AutomationTouchpadActionProvider>();
                 services.AddSingleton<IAutomationActionProvider>(sp => sp.GetRequiredService<AutomationTouchpadActionProvider>());
@@ -474,10 +480,16 @@ public partial class App : Application
                     automationRuleEngine.Initialize();
                     // 决策层：订阅代理状态变化事件，决定是否弹提示。必须在观察服务启动前完成订阅。
                     _ = Ioc.Default.GetRequiredService<AutomationProxyNotificationPolicy>();
-                    await automationRuleEngine.ExecuteStartupPipelinesAsync();
+                    // 各模块先把采集申请交到调度中心，再启动观察服务。
+                    _ = Ioc.Default.GetRequiredService<ObservationDemandCatalog>();
+                    // 有性能模式规则时，自动化在这里向调度中心的采样节拍订阅。
+                    _ = Ioc.Default.GetRequiredService<AutomationPerformanceModeWatcher>();
                     await MainWindow.EnqueueOrInvokeAsync(async (_) =>
                         await Ioc.Default.GetRequiredService<AutomationObservationService>().StartAsync());
                     Ioc.Default.GetRequiredService<AutomationProgramListRefreshService>().Start();
+                    // 启动类动作可能很慢（起进程、等窗口），放到观察服务起来之后再跑，
+                    // 否则这段时间系统发生的事件会全部漏掉。
+                    RunStartupPipelinesInBackground(automationRuleEngine);
                 });
 
             await ExecuteStartupStepAsync(
@@ -514,6 +526,22 @@ public partial class App : Application
             TryWriteStartupTrace($"{stepName} - failed: {ex.GetType().Name}: {ex.Message}");
             throw;
         }
+    }
+
+    private static void RunStartupPipelinesInBackground(AutomationRuleEngine ruleEngine)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ruleEngine.ExecuteStartupPipelinesAsync();
+            }
+            catch (Exception ex)
+            {
+                TryWriteStartupTrace($"Startup pipelines failed. error={ex.Message}");
+                Serilog.Log.Warning(ex, "Startup automation pipelines failed");
+            }
+        });
     }
 
     private static void TryWriteStartupTrace(string stage)
@@ -669,6 +697,7 @@ public partial class App : Application
 
         // Dispose all IDisposable services
         DisposeService<IAudioRouteHotkeyService>();
+        DisposeService<AutomationPerformanceModeWatcher>();
         DisposeService<AutomationObservationService>();
         DisposeService<AutomationProxyNotificationPolicy>();
         DisposeService<AutomationRuleEngine>();

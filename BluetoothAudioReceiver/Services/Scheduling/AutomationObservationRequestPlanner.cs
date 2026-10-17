@@ -1,25 +1,24 @@
 using BluetoothAudioReceiver.Automation.Models;
-using BluetoothAudioReceiver.Contracts.Services;
 using Windows.System.Power;
 
 namespace BluetoothAudioReceiver.Services;
 
 internal sealed class AutomationObservationRequestPlanner
 {
-    private readonly IAppSettingsService _appSettingsService;
+    private readonly ObservationDemandRegistry _demandRegistry;
     private readonly Func<string?> _getForegroundProcessName;
     private readonly Func<string?> _getForegroundWindowTitle;
     private readonly Func<bool> _isForegroundFullscreen;
     private readonly Func<string?, string?, bool> _isLikelyGame;
 
     public AutomationObservationRequestPlanner(
-        IAppSettingsService appSettingsService,
+        ObservationDemandRegistry demandRegistry,
         Func<string?> getForegroundProcessName,
         Func<string?> getForegroundWindowTitle,
         Func<bool> isForegroundFullscreen,
         Func<string?, string?, bool> isLikelyGame)
     {
-        _appSettingsService = appSettingsService;
+        _demandRegistry = demandRegistry;
         _getForegroundProcessName = getForegroundProcessName;
         _getForegroundWindowTitle = getForegroundWindowTitle;
         _isForegroundFullscreen = isForegroundFullscreen;
@@ -44,106 +43,87 @@ internal sealed class AutomationObservationRequestPlanner
         }
 
         var scene = ResolveScene(reason);
-        var moduleItems = BuildModuleRequestedInfoKinds();
-        ObservationInfoKind[] sceneItems = scene switch
-        {
-            ObservationUsageScene.Startup or ObservationUsageScene.Unlock =>
-            [
-                ObservationInfoKind.PowerState,
-                ObservationInfoKind.ForegroundWindow,
-                ObservationInfoKind.BluetoothState,
-                ObservationInfoKind.BluetoothRadioState,
-                ObservationInfoKind.AudioRoute,
-                ObservationInfoKind.ThemeMode,
-                ObservationInfoKind.Brightness,
-                ObservationInfoKind.NetworkState,
-                ObservationInfoKind.ProxyState
-            ],
-            ObservationUsageScene.HeavyWork =>
-            [
-                ObservationInfoKind.PowerState,
-                ObservationInfoKind.ForegroundWindow,
-                ObservationInfoKind.BluetoothState,
-                ObservationInfoKind.BluetoothRadioState,
-                ObservationInfoKind.AudioRoute,
-                ObservationInfoKind.ThemeMode,
-                ObservationInfoKind.NetworkState,
-                ObservationInfoKind.ProxyState
-            ],
-            ObservationUsageScene.VideoPlayback or ObservationUsageScene.Game =>
-            [
-                ObservationInfoKind.PowerState,
-                ObservationInfoKind.ForegroundWindow,
-                ObservationInfoKind.BluetoothState,
-                ObservationInfoKind.BluetoothRadioState,
-                ObservationInfoKind.AudioRoute
-            ],
-            ObservationUsageScene.LowBattery =>
-            [
-                ObservationInfoKind.PowerState,
-                ObservationInfoKind.BluetoothState,
-                ObservationInfoKind.BluetoothRadioState,
-                ObservationInfoKind.NetworkState,
-                ObservationInfoKind.ProxyState
-            ],
-            _ =>
-            [
-                ObservationInfoKind.PowerState,
-                ObservationInfoKind.ForegroundWindow,
-                ObservationInfoKind.BluetoothState,
-                ObservationInfoKind.BluetoothRadioState,
-                ObservationInfoKind.AudioRoute,
-                ObservationInfoKind.ThemeMode,
-                ObservationInfoKind.NetworkState,
-                ObservationInfoKind.ProxyState
-            ]
-        };
 
-        var items = sceneItems.Where(moduleItems.Contains).ToHashSet();
-        if (reason.Contains("proxy", StringComparison.OrdinalIgnoreCase))
+        // 采集范围只由各模块登记的并集决定，不再按场景裁剪。
+        // 场景仅作为日志和诊断标签保留。
+        var items = _demandRegistry.GetUnion().ToHashSet();
+
+        // 只采这次事件真正可能改变的部分；认不出来的原因一律全量，宁可多采不漏采。
+        if (TryResolveDirtyKinds(reason) is { Count: > 0 } dirtyKinds)
         {
-            items.Add(ObservationInfoKind.NetworkState);
-            items.Add(ObservationInfoKind.ProxyState);
+            items.IntersectWith(dirtyKinds);
         }
 
         return new ObservationRequest(scene, reason, items.ToArray(), requestCorrelationId);
     }
 
-    private IReadOnlyList<ObservationInfoKind> BuildModuleRequestedInfoKinds()
+    /// <summary>
+    /// 把触发这次刷新的原因翻译成"可能变了"的采集项。返回 null 表示按全量处理。
+    /// 合并原因用 "+" 连接，任何一段认不出来就退回全量。
+    /// </summary>
+    private static HashSet<ObservationInfoKind>? TryResolveDirtyKinds(string reason)
     {
-        var items = new HashSet<ObservationInfoKind>
-        {
-            ObservationInfoKind.AudioRoute,
-            ObservationInfoKind.ForegroundWindow,
-            ObservationInfoKind.BluetoothState,
-            ObservationInfoKind.BluetoothRadioState,
-            ObservationInfoKind.PowerState
-        };
+        var kinds = new HashSet<ObservationInfoKind>();
 
-        if (_appSettingsService.AutoBrightnessNotificationEnabled ||
-            _appSettingsService.AutoBrightnessOnUnlockEnabled ||
-            _appSettingsService.AutoBrightnessOnUnlockNotificationEnabled ||
-            _appSettingsService.AutoBrightnessOnForegroundEnabled)
+        foreach (var segment in reason.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            items.Add(ObservationInfoKind.Brightness);
+            if (!TryResolveSegment(segment, kinds))
+            {
+                return null;
+            }
         }
 
-        if (_appSettingsService.AutoDayNightEnabled ||
-            _appSettingsService.AutoDayNightNotificationEnabled ||
-            _appSettingsService.DisableNightLightEnabled ||
-            _appSettingsService.DisableNightLightAtNightEnabled)
+        return kinds.Count == 0 ? null : kinds;
+    }
+
+    private static bool TryResolveSegment(string segment, HashSet<ObservationInfoKind> kinds)
+    {
+        if (segment.StartsWith("system-power-", StringComparison.OrdinalIgnoreCase))
         {
-            items.Add(ObservationInfoKind.ThemeMode);
-            items.Add(ObservationInfoKind.PowerState);
+            kinds.Add(ObservationInfoKind.PowerState);
+            return true;
         }
 
-        if (_appSettingsService.ProxyStatusNotificationEnabled)
+        if (segment.Contains("bluetooth", StringComparison.OrdinalIgnoreCase))
         {
-            items.Add(ObservationInfoKind.NetworkState);
-            items.Add(ObservationInfoKind.ProxyState);
+            kinds.Add(ObservationInfoKind.BluetoothState);
+            kinds.Add(ObservationInfoKind.BluetoothRadioState);
+            return true;
         }
 
-        return items.ToArray();
+        switch (segment.ToLowerInvariant())
+        {
+            case "audio-playback-connected":
+            case "audio-playback-disconnected":
+            case "default-output-changed":
+                kinds.Add(ObservationInfoKind.AudioRoute);
+                return true;
+
+            case "power-changed":
+                kinds.Add(ObservationInfoKind.PowerState);
+                return true;
+
+            case "network-state-changed":
+                kinds.Add(ObservationInfoKind.NetworkState);
+                return true;
+
+            case "proxy-registry-changed":
+            case "network-proxy-changed":
+                kinds.Add(ObservationInfoKind.NetworkState);
+                kinds.Add(ObservationInfoKind.ProxyState);
+                return true;
+
+            case "foreground-window-changed":
+            case "process-started":
+            case "process-stopped":
+                kinds.Add(ObservationInfoKind.ForegroundWindow);
+                return true;
+
+            // 启动、"sun-loop"（每分钟的定时兜底）、解锁、改时间、日出日落、代理通知之外的情况
+            // 都按全量采，保证最迟一分钟内各项一定对齐。
+            default:
+                return false;
+        }
     }
 
     private ObservationUsageScene ResolveScene(string reason)

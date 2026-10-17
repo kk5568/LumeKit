@@ -76,6 +76,15 @@ internal sealed class AutomationGameModeDecisionService
         }
     }
 
+    /// <summary>
+    /// 调度中心撮合一次采样：算一遍，并告诉它下一次该用快节拍还是慢节拍。
+    /// </summary>
+    public bool EvaluateAndReportActive(Func<PerformanceSample> sampleFactory)
+    {
+        Evaluate(sampleFactory);
+        return IsAnyModeActive();
+    }
+
     public bool IsAnyModeActive()
     {
         lock (_syncRoot)
