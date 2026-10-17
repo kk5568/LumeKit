@@ -14,6 +14,4 @@ public interface INavigationService
     Task<bool> NavigateToAsync(string pageKey, object? parameter = null, bool clearNavigation = false);
 
     Task<bool> GoBackAsync();
-
-    string? GetCurrentPageKey();
 }

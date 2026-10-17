@@ -105,12 +105,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private static readonly string DefaultLanguage = AppLanguageHelper.DefaultCode;
 
-    private string GetLanguage()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.LanguageKey, DefaultLanguage);
-        return data;
-    }
-
     public async Task SetLanguageAsync(string language)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.LanguageKey, language);
@@ -136,12 +130,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private const ElementTheme DefaultTheme = ElementTheme.Default;
 
-    private ElementTheme GetTheme()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.ThemeKey, DefaultTheme);
-        return data;
-    }
-
     public async Task SetThemeAsync(ElementTheme theme)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.ThemeKey, theme);
@@ -166,12 +154,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     }
 
     private const BackdropType DefaultBackdropType = BackdropType.Mica;
-
-    private BackdropType GetBackdropType()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.BackdropTypeKey, DefaultBackdropType);
-        return data;
-    }
 
     public async Task SetBackdropAsync(BackdropType type)
     {
@@ -228,12 +210,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     }
 
     private const bool DefaultNotificationEnabled = false;
-    private bool GetNotificationEnabled()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.NotificationEnabledKey, DefaultNotificationEnabled);
-        return data;
-    }
-
     public async Task SetNotificationEnabledAsync(bool enabled)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.NotificationEnabledKey, enabled);
@@ -357,11 +333,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
         }
     }
 
-    private bool GetDisableNotificationInGame()
-    {
-        return GetDataFromSettings(_localSettingsKeys.DisableNotificationInGameKey, false);
-    }
-
     public async Task SetDisableNotificationInGameAsync(bool enabled)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.DisableNotificationInGameKey, enabled);
@@ -379,11 +350,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
                 disableNotificationInVideo = value;
             }
         }
-    }
-
-    private bool GetDisableNotificationInVideo()
-    {
-        return GetDataFromSettings(_localSettingsKeys.DisableNotificationInVideoKey, false);
     }
 
     public async Task SetDisableNotificationInVideoAsync(bool enabled)
@@ -405,11 +371,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
         }
     }
 
-    private bool GetDisableNotificationInFullscreen()
-    {
-        return GetDataFromSettings(_localSettingsKeys.DisableNotificationInFullscreenKey, false);
-    }
-
     public async Task SetDisableNotificationInFullscreenAsync(bool enabled)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.DisableNotificationInFullscreenKey, enabled);
@@ -429,11 +390,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
         }
     }
 
-    private bool GetDisableNotificationInRecordingOrLive()
-    {
-        return GetDataFromSettings(_localSettingsKeys.DisableNotificationInRecordingOrLiveKey, false);
-    }
-
     public async Task SetDisableNotificationInRecordingOrLiveAsync(bool enabled)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.DisableNotificationInRecordingOrLiveKey, enabled);
@@ -451,11 +407,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
                 hideNotificationWhenTrayPopupVisible = value;
             }
         }
-    }
-
-    private bool GetHideNotificationWhenTrayPopupVisible()
-    {
-        return GetDataFromSettings(_localSettingsKeys.HideNotificationWhenTrayPopupVisibleKey, false);
     }
 
     public async Task SetHideNotificationWhenTrayPopupVisibleAsync(bool enabled)
@@ -564,12 +515,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private const string DefaultPreferredInputDeviceId = "";
 
-    private string GetPreferredInputDeviceId()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.PreferredInputDeviceIdKey, DefaultPreferredInputDeviceId);
-        return data;
-    }
-
     public async Task SetPreferredInputDeviceIdAsync(string deviceId)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.PreferredInputDeviceIdKey, deviceId);
@@ -594,12 +539,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     }
 
     private const string DefaultPreferredOutputDeviceId = "";
-
-    private string GetPreferredOutputDeviceId()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.PreferredOutputDeviceIdKey, DefaultPreferredOutputDeviceId);
-        return data;
-    }
 
     public async Task SetPreferredOutputDeviceIdAsync(string deviceId)
     {
@@ -626,12 +565,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private const string DefaultInputHotkey = "Ctrl+Alt+I";
 
-    private string GetInputHotkey()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.InputHotkeyKey, DefaultInputHotkey);
-        return data;
-    }
-
     public async Task SetInputHotkeyAsync(string hotkey)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.InputHotkeyKey, hotkey);
@@ -656,12 +589,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     }
 
     private const string DefaultOutputHotkey = "Ctrl+Alt+O";
-
-    private string GetOutputHotkey()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.OutputHotkeyKey, DefaultOutputHotkey);
-        return data;
-    }
 
     public async Task SetOutputHotkeyAsync(string hotkey)
     {
@@ -688,12 +615,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private const string DefaultAutoBrightnessHotkey = "";
 
-    private string GetAutoBrightnessHotkey()
-    {
-        var data = GetDataFromSettings(_localSettingsKeys.AutoBrightnessHotkeyKey, DefaultAutoBrightnessHotkey);
-        return data;
-    }
-
     public async Task SetAutoBrightnessHotkeyAsync(string hotkey)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.AutoBrightnessHotkeyKey, hotkey);
@@ -719,11 +640,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private const bool DefaultAutoBrightnessNotificationEnabled = true;
 
-    private bool GetAutoBrightnessNotificationEnabled()
-    {
-        return GetDataFromSettings(_localSettingsKeys.AutoBrightnessNotificationEnabledKey, DefaultAutoBrightnessNotificationEnabled);
-    }
-
     public async Task SetAutoBrightnessNotificationEnabledAsync(bool enabled)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.AutoBrightnessNotificationEnabledKey, enabled);
@@ -748,11 +664,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     }
 
     private const bool DefaultAutoBrightnessOnUnlockEnabled = true;
-
-    private bool GetAutoBrightnessOnUnlockEnabled()
-    {
-        return GetDataFromSettings(_localSettingsKeys.AutoBrightnessOnUnlockEnabledKey, DefaultAutoBrightnessOnUnlockEnabled);
-    }
 
     public async Task SetAutoBrightnessOnUnlockEnabledAsync(bool enabled)
     {
@@ -863,11 +774,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     private const bool DefaultDisableNightLightEnabled = false;
 
-    private bool GetDisableNightLightEnabled()
-    {
-        return GetDataFromSettings(_localSettingsKeys.DisableNightLightEnabledKey, DefaultDisableNightLightEnabled);
-    }
-
     public async Task SetDisableNightLightEnabledAsync(bool enabled)
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.DisableNightLightEnabledKey, enabled);
@@ -892,11 +798,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     }
 
     private const bool DefaultDisableNightLightAtNightEnabled = false;
-
-    private bool GetDisableNightLightAtNightEnabled()
-    {
-        return GetDataFromSettings(_localSettingsKeys.DisableNightLightAtNightEnabledKey, DefaultDisableNightLightAtNightEnabled);
-    }
 
     public async Task SetDisableNightLightAtNightEnabledAsync(bool enabled)
     {

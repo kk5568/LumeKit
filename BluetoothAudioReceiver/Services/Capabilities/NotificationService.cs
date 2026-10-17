@@ -116,7 +116,7 @@ internal class NotificationService : INotificationService
             if (ShouldSuppressByScene(appSettings) ||
                 TrayAudioQuickPanelControl.IsOpen ||
                 (appSettings.HideNotificationWhenTrayPopupVisible &&
-                 TrayQuickPanelWindow.IsPanelVisible))
+                 TrayAudioQuickPanelWindow.IsPanelVisible))
             {
                 return;
             }

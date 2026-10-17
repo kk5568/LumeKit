@@ -3,15 +3,7 @@ using BluetoothAudioReceiver.Contracts.Services;
 
 namespace BluetoothAudioReceiver.Services;
 
-internal interface IAutomationObservationCollector
-{
-    Task<AutomationDynamicContext> CollectAsync(
-        AutomationDynamicContext previous,
-        ObservationRequest request,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class AutomationObservationCollector : IAutomationObservationCollector
+internal sealed class AutomationObservationCollector
 {
     private readonly AutomationObservationGetterSelector _getterSelector;
     private readonly Func<CancellationToken> _getCancellationToken;
@@ -42,13 +34,6 @@ internal sealed class AutomationObservationCollector : IAutomationObservationCol
     }
 }
 
-internal interface IAutomationObservationProcessor
-{
-    Task ProcessAsync(
-        AutomationDynamicContext current,
-        CancellationToken cancellationToken);
-}
-
 /// <summary>
 /// 观察层采样到的一次性能事实。只描述现状，不含任何用户规则判断。
 /// </summary>
@@ -59,15 +44,7 @@ internal readonly record struct PerformanceSample(
     float? GpuUsagePercent,
     DateTimeOffset CapturedAt);
 
-internal interface IAutomationObservationDispatcher
-{
-    void Dispatch(
-        AutomationDynamicContext previous,
-        AutomationDynamicContext current,
-        ObservationRequest request);
-}
-
-internal sealed class AutomationObservationEventDispatcher : IAutomationObservationDispatcher
+internal sealed class AutomationObservationEventDispatcher
 {
     private readonly Action<AutomationDynamicContext, AutomationDynamicContext, ObservationRequest> _dispatch;
 

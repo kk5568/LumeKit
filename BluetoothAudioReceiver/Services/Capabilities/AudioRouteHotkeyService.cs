@@ -803,33 +803,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
         return deviceId.Trim();
     }
 
-    private static string ResolveDeviceTypeGlyph(string deviceName)
-    {
-        var normalizedName = (deviceName ?? string.Empty).ToLowerInvariant();
-
-        if (normalizedName.Contains("headphone")
-            || normalizedName.Contains("headset")
-            || normalizedName.Contains("earbud")
-            || normalizedName.Contains("earbuds")
-            || normalizedName.Contains("buds")
-            || normalizedName.Contains("airpods")
-            || normalizedName.Contains("耳机"))
-        {
-            return "\uE7F6"; // Headphone
-        }
-
-        if (normalizedName.Contains("microphone") || normalizedName.Contains("mic") || normalizedName.Contains("麦克风"))
-        {
-            return "\uE720"; // Microphone
-        }
-
-        if (normalizedName.Contains("speaker") || normalizedName.Contains("soundbar") || normalizedName.Contains("音箱") || normalizedName.Contains("扬声器"))
-        {
-            return "\uE7F5"; // Speaker
-        }
-
-        return "\uE7F5"; // Speaker (default fallback)
-    }
 
     private async Task EnsureTargetCandidatesLoadedFromBindingsAsync(bool isInput, bool forceReload = false)
     {
@@ -1442,21 +1415,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
         }
     }
 
-    private void EnsureMouseHook()
-    {
-        if (_mouseHookHandle != IntPtr.Zero)
-        {
-            return;
-        }
-
-        _mouseHookProc = MouseHookProc;
-        _mouseHookHandle = NativeKeyboardMethods.SetWindowsHookEx(WhMouseLl, _mouseHookProc, IntPtr.Zero, 0);
-        if (_mouseHookHandle == IntPtr.Zero)
-        {
-            var error = Marshal.GetLastWin32Error();
-            _log.Debug("Failed to enable mouse hook for user activity, win32={Error}", error);
-        }
-    }
 
     private void DisposeKeyboardHook()
     {
@@ -2237,21 +2195,6 @@ internal sealed class AudioRouteHotkeyService : IAudioRouteHotkeyService, IDispo
         return realCandidates[0].index;
     }
 
-    private async Task DisconnectConnectedInputDevicesExceptAsync(string? keepDeviceId = null)
-    {
-        var connectedSnapshot = _connectionService.ConnectedDevices.ToList();
-        var normalizedKeepId = NormalizeSelectionId(keepDeviceId, isInput: true);
-        foreach (var connected in connectedSnapshot)
-        {
-            if (!string.IsNullOrWhiteSpace(keepDeviceId) &&
-                string.Equals(DeviceIdentityHelper.GetSelectionId(connected, isInput: true), normalizedKeepId, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            await _connectionService.DisconnectAsync(connected);
-        }
-    }
 
     private bool ReleaseFallbackHotkeys(uint releasedVk)
     {

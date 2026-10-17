@@ -28,9 +28,9 @@ internal sealed class AutomationObservationService : IDisposable
     private readonly AutomationGameModeDecisionService _gameModeDecisionService;
     private readonly PerformanceObservationSampler _performanceSampler;
     private readonly AutomationObservationGetterSelector _getterSelector;
-    private readonly IAutomationObservationCollector _observationCollector;
+    private readonly AutomationObservationCollector _observationCollector;
     private readonly AutomationObservationStateProcessor _observationProcessor;
-    private readonly IAutomationObservationDispatcher _observationDispatcher;
+    private readonly AutomationObservationEventDispatcher _observationDispatcher;
     private readonly AutomationObservationRequestPlanner _requestPlanner;
     private readonly AutomationObservationSubscriptionManager _subscriptionManager;
     private readonly AutomationObservationPublisher _observationPublisher;

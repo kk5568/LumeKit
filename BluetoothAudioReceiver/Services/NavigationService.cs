@@ -97,16 +97,6 @@ internal class NavigationService(INavigationViewService navigationViewService, I
         return false;
     }
 
-    public string? GetCurrentPageKey()
-    {
-        var type = GetCurrentPageType();
-        if (type != null)
-        {
-            return _pageService.GetPageKey(type);
-        }
-
-        return null;
-    }
 
     private async void OnNavigated(object sender, NavigationEventArgs e)
     {
@@ -125,34 +115,5 @@ internal class NavigationService(INavigationViewService navigationViewService, I
 
             Navigated?.Invoke(sender, e);
         }
-
-        // Update the contained NavigationViewItem based on the page type
-        var currentPageType = GetCurrentPageType();
-        if (currentPageType != null)
-        {
-            var containedPageKey = _pageService.GetSubpageKey(currentPageType);
-            if (containedPageKey != null)
-            {
-                var currentItem = _navigationViewService.GetSelectedItem();
-                if (currentItem != null)
-                {
-                    var currentItemKey = NavigationHelper.GetNavigateTo(currentItem);
-                    if (currentItemKey != null && currentItemKey != containedPageKey)
-                    {
-                        _navigationViewService.SetNavigateTo(containedPageKey);
-                    }
-                }
-            }
-        }
-    }
-
-    private Type? GetCurrentPageType()
-    {
-        if (_frame?.Content is Page page)
-        {
-            return page.GetType();
-        }
-
-        return null;
     }
 }

@@ -8,7 +8,7 @@ namespace BluetoothAudioReceiver.Services;
 /// 观察层：维护系统动态上下文、做进程事件去重，并按节拍采样前台性能事实。
 /// 这里不读任何自动化规则，也不判断"算不算游戏"——那是决策层的事。
 /// </summary>
-internal sealed class AutomationObservationStateProcessor : IAutomationObservationProcessor, IDisposable
+internal sealed class AutomationObservationStateProcessor : IDisposable
 {
     private static readonly TimeSpan ProcessDedupWindow = TimeSpan.FromSeconds(15);
 

@@ -9,6 +9,4 @@ public interface IPageService
     Type GetPageType(string viewModel);
 
     string GetPageKey(Type pageType);
-
-    string? GetSubpageKey(Type pageType);
 }
