@@ -287,8 +287,6 @@ public partial class App : Application
                 services.AddTransient<AutomationHubPage>();
                 services.AddTransient<CommonAutomationHubPageViewModel>();
                 services.AddTransient<CommonAutomationHubPage>();
-                services.AddTransient<CustomAutomationHubPageViewModel>();
-                services.AddTransient<CustomAutomationHubPage>();
                 services.AddSingleton<AutomationListPageViewModel>();
                 services.AddTransient<AutomationListPage>();
                 services.AddTransient<AutomationGameListPageViewModel>();

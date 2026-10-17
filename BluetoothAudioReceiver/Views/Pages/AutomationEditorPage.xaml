@@ -65,7 +65,7 @@
 
         <Style x:Key="AutomationPropertyComboBoxStyle" TargetType="ComboBox">
             <Setter Property="Height" Value="{StaticResource ParameterControlHeight}" />
-            <Setter Property="Width" Value="180" />
+            <Setter Property="Width" Value="150" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="HorizontalContentAlignment" Value="Right" />
             <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
@@ -482,9 +482,15 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Padding="{StaticResource EditorPagePadding}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="8*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
             <StackPanel
-                MaxWidth="{StaticResource EditorMaxWidth}"
-                HorizontalAlignment="Center"
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
                 Spacing="24">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
@@ -538,7 +544,7 @@
                                 FontSize="18"
                                 FontWeight="SemiBold" />
 
-                            <Grid ColumnSpacing="12">
+                            <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -551,7 +557,7 @@
                                     SelectedItem="{Binding ViewModel.ExecutionNotificationEnabledText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
-                            <Grid ColumnSpacing="12">
+                            <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -564,7 +570,7 @@
                                     SelectedItem="{Binding ViewModel.RunOnStartupEnabledText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
-                            <Grid ColumnSpacing="12">
+                            <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -577,7 +583,7 @@
                                     SelectedItem="{Binding ViewModel.OnceOnlyEnabledText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
-                            <Grid ColumnSpacing="12">
+                            <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -590,7 +596,7 @@
                                     SelectedItem="{Binding ViewModel.CooldownText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
-                            <Grid ColumnSpacing="12">
+                            <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -603,7 +609,7 @@
                                     SelectedItem="{Binding ViewModel.AllowRepeatedExecutionText, ElementName=RootPage, Mode=TwoWay}" />
                             </Grid>
 
-                            <Grid ColumnSpacing="12">
+                            <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />

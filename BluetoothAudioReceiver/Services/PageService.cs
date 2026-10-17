@@ -18,7 +18,6 @@ internal class PageService : IPageService
         Configure<HomePageViewModel, HomePage>();
         Configure<AutomationHubPageViewModel, AutomationHubPage>();
         Configure<CommonAutomationHubPageViewModel, CommonAutomationHubPage>();
-        Configure<CustomAutomationHubPageViewModel, CustomAutomationHubPage>();
         Configure<AutomationListPageViewModel, AutomationListPage>();
         Configure<AutomationGameListPageViewModel, AutomationGameListPage>();
         Configure<BackgroundTasksHubPageViewModel, BackgroundTasksHubPage>();

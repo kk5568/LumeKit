@@ -558,10 +558,12 @@ public sealed partial class AutomationEditorPage : Page
             .Select(item => new PickerOption(item, AutomationDisplayTextConverter.ToDisplayText(item)))
             .ToList();
 
-        return await ShowActionTileDialogAsync(options, currentAction);
+        return await ShowTileDialogAsync("选择动作", ViewModel.ActionPickerCategories, options, currentAction);
     }
 
-    private async Task<string?> ShowActionTileDialogAsync(
+    private async Task<string?> ShowTileDialogAsync(
+        string title,
+        IReadOnlyList<AutomationActionCategory> categories,
         IReadOnlyList<PickerOption> options,
         string? currentValue)
     {
@@ -574,11 +576,11 @@ public sealed partial class AutomationEditorPage : Page
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "选择动作",
+            Title = title,
             CloseButtonText = "取消"
         };
 
-        dialog.Content = BuildActionTileContent(options, currentValue, value =>
+        dialog.Content = BuildTileContent(categories, options, currentValue, value =>
         {
             selected = value;
             dialog.Hide();
@@ -588,7 +590,8 @@ public sealed partial class AutomationEditorPage : Page
         return selected;
     }
 
-    private FrameworkElement BuildActionTileContent(
+    private FrameworkElement BuildTileContent(
+        IReadOnlyList<AutomationActionCategory> categories,
         IReadOnlyList<PickerOption> options,
         string? currentValue,
         Action<string> commit)
@@ -600,7 +603,7 @@ public sealed partial class AutomationEditorPage : Page
             MinWidth = 460
         };
 
-        foreach (var category in ViewModel.ActionPickerCategories)
+        foreach (var category in categories)
         {
             var tiles = category.Actions
                 .Where(optionLookup.ContainsKey)
@@ -710,7 +713,7 @@ public sealed partial class AutomationEditorPage : Page
             .Select(item => new PickerOption(item, AutomationDisplayTextConverter.ToDisplayText(item)))
             .ToList();
 
-        return await ShowPickerDialogAsync("选择触发器", "触发器", options, currentTrigger);
+        return await ShowTileDialogAsync("选择触发器", ViewModel.TriggerPickerCategories, options, currentTrigger);
     }
 
     private async Task<string?> ShowPickerDialogAsync(

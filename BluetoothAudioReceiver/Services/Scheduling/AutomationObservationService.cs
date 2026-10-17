@@ -55,6 +55,7 @@ internal sealed class AutomationObservationService : IDisposable
     private ManagementEventWatcher? _processStartedWatcher;
     private ManagementEventWatcher? _processStoppedWatcher;
     private bool _started;
+    private volatile bool _disposed;
     private static readonly TimeSpan ObservationCoalesceDelay = TimeSpan.FromMilliseconds(200);
     private readonly object _refreshSync = new();
     private readonly List<string> _pendingReasons = [];
@@ -482,30 +483,38 @@ internal sealed class AutomationObservationService : IDisposable
 
     private async void OnSystemForegroundWindowChanged(object? sender, IntPtr hwnd)
     {
-        if (_isLocked)
+        if (_isLocked || _disposed)
         {
             return;
         }
 
-        _log.Debug("Automation observation received foreground window change. WindowHandle={WindowHandle}", hwnd);
-        var correlationId = Guid.NewGuid();
-        _observationPublisher.PublishForegroundWindowChanged(hwnd, correlationId);
-        _observationPublisher.PublishBackgroundDispatchMessage(
-            BackgroundDispatchMessageType.ForegroundWindowChanged,
-            "foreground-window-changed",
-            BackgroundDispatchScene.HeavyWork,
-            new Dictionary<string, string?>
-            {
-                ["windowHandle"] = hwnd.ToInt64().ToString(),
-                ["processName"] = ForegroundWindowProbe.GetForegroundProcessName()
-            },
-            correlationId);
-        await RequestObservationRefreshAsync("foreground-window-changed", correlationId);
+        try
+        {
+            _log.Debug("Automation observation received foreground window change. WindowHandle={WindowHandle}", hwnd);
+            var correlationId = Guid.NewGuid();
+            _observationPublisher.PublishForegroundWindowChanged(hwnd, correlationId);
+            _observationPublisher.PublishBackgroundDispatchMessage(
+                BackgroundDispatchMessageType.ForegroundWindowChanged,
+                "foreground-window-changed",
+                BackgroundDispatchScene.HeavyWork,
+                new Dictionary<string, string?>
+                {
+                    ["windowHandle"] = hwnd.ToInt64().ToString(),
+                    ["processName"] = ForegroundWindowProbe.GetForegroundProcessName()
+                },
+                correlationId);
+            await RequestObservationRefreshAsync("foreground-window-changed", correlationId);
+        }
+        catch (Exception ex)
+        {
+            // 事件回调里的异常没人接，会一路走到全局 FailFast 把进程杀掉，这里必须兜住。
+            _log.Warning(ex, "Automation foreground window change handling failed");
+        }
     }
 
     private async Task RequestObservationRefreshAsync(string reason, Guid? correlationId = null)
     {
-        if (_isLocked)
+        if (_isLocked || _disposed)
         {
             return;
         }
@@ -568,6 +577,11 @@ internal sealed class AutomationObservationService : IDisposable
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
+        catch (Exception ex)
+        {
+            // 这条路径由 async void 事件回调驱动，异常逃出去会被全局处理器当成致命错误。
+            _log.Warning(ex, "Automation observation refresh failed. Reason={Reason}", mergedReason);
+        }
     }
 
     private ObservationRequest CollectInformationRequest(string reason, Guid? correlationId = null)
@@ -575,6 +589,11 @@ internal sealed class AutomationObservationService : IDisposable
 
     private async Task PublishCurrentStateAsync(CancellationToken token, ObservationRequest request)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         // 快速项（进程、窗口、蓝牙缓存、电源、主题）先采先发，让事件尽快进自动化；
         // 慢项（亮度、网络、代理、音频路由）随后补采再发一次，发布层只发真正变了的部分。
         var fastItems = request.Items.Where(item => !AutomationObservationGetterSelector.IsSlowKind(item)).ToArray();
@@ -593,7 +612,25 @@ internal sealed class AutomationObservationService : IDisposable
 
     private async Task CollectAndPublishAsync(CancellationToken token, ObservationRequest request)
     {
-        await _observationPublisher.PublishGate.WaitAsync(token);
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await _observationPublisher.PublishGate.WaitAsync(token);
+        }
+        catch (ObjectDisposedException)
+        {
+            // 退出过程中发布器先被释放了，这次刷新直接作废。
+            return;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         try
         {
             var previous = _lastPublishedContext;
@@ -615,7 +652,14 @@ internal sealed class AutomationObservationService : IDisposable
         }
         finally
         {
-            _observationPublisher.PublishGate.Release();
+            try
+            {
+                _observationPublisher.PublishGate.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // 退出时发布器已释放，这次释放没有意义，忽略。
+            }
         }
     }
 
@@ -855,6 +899,15 @@ internal sealed class AutomationObservationService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        // 先立起"已释放"标记，后续进来的事件回调会直接跳过，
+        // 不会再摸到下面即将释放的信号量。
+        _disposed = true;
+
         if (!_started)
         {
             return;

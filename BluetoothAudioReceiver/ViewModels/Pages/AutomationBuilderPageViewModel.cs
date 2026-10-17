@@ -96,6 +96,15 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         new("系统与流程", ["通知", "触摸板", "等待"])
     ];
 
+    /// <summary>「选择触发器」弹窗的分类分组，需覆盖 <see cref="TriggerActionOptions"/> 的全部触发器。</summary>
+    private static readonly IReadOnlyList<AutomationActionCategory> TriggerPickerCategoryList =
+    [
+        new("应用与窗口", ["程序启动", "程序退出"]),
+        new("性能与电源", [PerformanceModeTriggerTitle, "电源状态"]),
+        new("设备", ["蓝牙已连接", "输出设备变化"]),
+        new("时间", ["到达日出", "到达日落"])
+    ];
+
     private static readonly IReadOnlyDictionary<string, string> TriggerTitleToTypeMap =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -171,6 +180,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
 
     public IReadOnlyList<string> ActionOptions => EditorActionOptions;
     public IReadOnlyList<AutomationActionCategory> ActionPickerCategories => ActionPickerCategoryList;
+    public IReadOnlyList<AutomationActionCategory> TriggerPickerCategories => TriggerPickerCategoryList;
     public IReadOnlyList<string> TriggerOptions => TriggerActionOptions;
     public IReadOnlyList<string> InputDeviceActionOptions => _inputDeviceActionOptions;
     public IReadOnlyList<string> PerformanceWindowModeOptions => _performanceWindowModeOptions;

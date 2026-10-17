@@ -23,7 +23,7 @@ public sealed partial class AutomationHubPage : Page
 
     private void CustomAutomationEntry_Click(object sender, RoutedEventArgs e)
     {
-        Frame.Navigate(typeof(CustomAutomationHubPage));
+        Frame.Navigate(typeof(AutomationListPage));
     }
 
     private void GameListEntry_Click(object sender, RoutedEventArgs e)
