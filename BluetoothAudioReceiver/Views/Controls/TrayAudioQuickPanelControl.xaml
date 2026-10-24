@@ -17,34 +17,13 @@
         BorderBrush="{ThemeResource WidgetOverlayStrokeBrush}"
         BorderThickness="1"
         CornerRadius="8">
-        <Grid Padding="14,10,14,12" RowSpacing="8">
+        <Grid Padding="14,12,14,12" RowSpacing="8">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0">
-                <TextBlock
-                    x:Name="TitleText"
-                    VerticalAlignment="Center"
-                    FontSize="13"
-                    FontWeight="SemiBold"
-                    Text="快捷中心" />
-                <Button
-                    x:Name="CloseButton"
-                    Width="28"
-                    Height="28"
-                    Padding="0"
-                    HorizontalAlignment="Right"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    ToolTipService.ToolTip="关闭">
-                    <FontIcon FontSize="12" Glyph="&#xE711;" />
-                </Button>
-            </Grid>
-
             <ScrollViewer
-                Grid.Row="1"
+                Grid.Row="0"
                 HorizontalScrollBarVisibility="Disabled"
                 HorizontalScrollMode="Disabled"
                 VerticalScrollBarVisibility="Auto"

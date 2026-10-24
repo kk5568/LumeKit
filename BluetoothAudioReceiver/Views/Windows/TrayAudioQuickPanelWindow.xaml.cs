@@ -42,7 +42,6 @@ public sealed partial class TrayAudioQuickPanelWindow : WindowEx
     {
         InitializeComponent();
 
-        PanelContent.CloseRequested += (_, _) => HidePanel();
         PanelContent.KeyDown += OnPanelKeyDown;
 
         IsTitleBarVisible = false;

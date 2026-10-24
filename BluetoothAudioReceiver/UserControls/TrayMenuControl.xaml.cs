@@ -206,7 +206,6 @@ public sealed partial class TrayMenuControl : UserControl
     private TrayAudioQuickPanelControl CreateQuickPanelContent()
     {
         var content = new TrayAudioQuickPanelControl();
-        content.CloseRequested += (_, _) => _floatingService.Dismiss();
         content.PrepareForHost();
         return content;
     }

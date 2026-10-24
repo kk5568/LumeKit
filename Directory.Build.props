@@ -1,8 +1,8 @@
 <Project>
   <PropertyGroup>
     <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
-    <LumeKitVersion>2026.10.18.17.30</LumeKitVersion>
-    <LumeKitPackageVersion>26.10.18.1730</LumeKitPackageVersion>
+    <LumeKitVersion>2026.10.24.17.32</LumeKitVersion>
+    <LumeKitPackageVersion>26.10.24.1732</LumeKitPackageVersion>
     <Version>$(LumeKitPackageVersion)</Version>
     <AssemblyVersion>$(LumeKitPackageVersion)</AssemblyVersion>
     <FileVersion>$(LumeKitPackageVersion)</FileVersion>

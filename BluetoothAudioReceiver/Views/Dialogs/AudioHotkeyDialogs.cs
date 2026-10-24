@@ -159,7 +159,8 @@ internal static class AudioHotkeyDialogs
         BluetoothPageViewModel viewModel,
         IReadOnlyList<string> preselectedIds)
     {
-        await viewModel.EnsureAllDevicesLoadedAsync();
+        // 设备清单以「打开这一刻」为准：启动后新连上的设备（如蓝牙耳机）要能立刻出现在这里。
+        await viewModel.EnsureAllDevicesLoadedAsync(forceReload: true);
         var choices = viewModel.GetUnifiedDeviceChoices();
 
         var selectedSet = new HashSet<string>(

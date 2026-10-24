@@ -144,7 +144,6 @@ public partial class BluetoothPageViewModel : ObservableObject, INavigationAware
 
             var inputTask = _connectionService.FindAllInputRouteDevicesAsync();
             var outputTask = _audioRouteHotkeyService.GetOutputDevicesAsync();
-            var retainedOutputTask = LoadRetainedOutputDevicesAsync();
             await Task.WhenAll(inputTask, outputTask);
 
             _inputChoiceMap.Clear();
@@ -188,7 +187,8 @@ public partial class BluetoothPageViewModel : ObservableObject, INavigationAware
                 AddOutputChoice(choice, device.EndpointId, physicalId);
             }
 
-            await retainedOutputTask;
+            // 保留项（记住过但现在枚举不到的设备）要在完整名单落地之后再补，否则会被上面的 Clear 清掉。
+            await LoadRetainedOutputDevicesAsync();
 
             RebuildUnifiedChoiceMap();
             _devicesLoaded = true;

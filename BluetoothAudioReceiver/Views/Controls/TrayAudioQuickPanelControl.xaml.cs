@@ -42,6 +42,7 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     private const string MicrophoneGlyph = "\uE720";
     private const string DisplayGlyph = "\uE7F4";
     private const string DefaultDeviceLabel = "\u97F3\u9891\u8BBE\u5907";  // 音频设备
+    private const string UnavailableDeviceName = "\u5DF2\u65AD\u5F00\u7684\u8BBE\u5907";  // 已断开的设备
 
     private const string InputHotkeyBindingsKey = "InputHotkeyBindingsV2";
     private const string OutputHotkeyBindingsKey = "OutputHotkeyBindingsV2";
@@ -80,9 +81,6 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     private List<string>? _frozenInputOrder;
     private List<string>? _frozenOutputOrder;
 
-    /// <summary>点「×」时触发，由宿主编排关闭浮层。</summary>
-    public event EventHandler? CloseRequested;
-
     public TrayAudioQuickPanelControl()
     {
         InitializeComponent();
@@ -91,7 +89,6 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         _audioRouteHotkeyService = Ioc.Default.GetRequiredService<IAudioRouteHotkeyService>();
         _localSettingsService = Ioc.Default.GetRequiredService<ILocalSettingsService>();
 
-        CloseButton.Click += (_, _) => CloseRequested?.Invoke(this, EventArgs.Empty);
         Loaded += (_, _) => ApplyTheme();
     }
 
@@ -103,14 +100,8 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         var inputDevicesTask = _connectionService.FindAllInputRouteDevicesAsync();
         var outputDevicesTask = _audioRouteHotkeyService.GetOutputDevicesAsync();
         var defaultOutputTask = _audioRouteHotkeyService.GetCurrentDefaultOutputEndpointIdAsync();
-        var inputIdsTask = GetSelectedDeviceIdsAsync(
-            InputHotkeyBindingsKey,
-            _appSettingsService.PreferredInputDeviceId,
-            isInput: true);
-        var outputIdsTask = GetSelectedDeviceIdsAsync(
-            OutputHotkeyBindingsKey,
-            _appSettingsService.PreferredOutputDeviceId,
-            isInput: false);
+        var inputIdsTask = GetRememberedDeviceEntriesAsync(InputHotkeyBindingsKey);
+        var outputIdsTask = GetRememberedDeviceEntriesAsync(OutputHotkeyBindingsKey);
 
         await Task.WhenAll(
             inputDevicesTask,
@@ -118,9 +109,6 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
             defaultOutputTask,
             inputIdsTask,
             outputIdsTask);
-
-        var inputLookup = BuildInputDeviceLookup(inputDevicesTask.Result);
-        var outputLookup = BuildOutputDeviceLookup(outputDevicesTask.Result);
 
         var currentDefaultOutputEndpointId = NormalizeOutputSelectionId(defaultOutputTask.Result);
         var outputDevices = outputDevicesTask.Result
@@ -139,70 +127,109 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
                 .Where(id => !string.IsNullOrWhiteSpace(id)),
             StringComparer.OrdinalIgnoreCase);
 
-        // 输入段以「系统当前能看到的输入设备」为准：同一条绑定里既记了原生设备路径、
-        // 又记了物理编号，按物理编号去重后一台设备只出一张卡。
+        // 输入段照抄音频管理卡片：卡片记了谁就出谁，没记的一律不出现，名字也用卡片里存的。
         var inputCards = new List<CardItem>();
-        var rememberedInputIds = new HashSet<string>(inputIdsTask.Result, StringComparer.OrdinalIgnoreCase);
-        var showAllInputs = rememberedInputIds.Count == 0;   // 没绑定也没首选时，显示当前能连的输入设备
         var seenInputDevices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var addedInputEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var inputDevices = inputDevicesTask.Result
             .Where(device => !string.IsNullOrWhiteSpace(device.Id))
-            .GroupBy(device => device.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First());
+            .ToList();
 
-        foreach (var device in inputDevices)
+        foreach (var entry in inputIdsTask.Result)
         {
-            var name = ResolveDeviceName(device.Id, inputLookup);
-            if (string.IsNullOrWhiteSpace(name) ||
-                (!showAllInputs && !MatchesAnyId(device, rememberedInputIds)))
+            if (!addedInputEntries.Add(entry.Id))
             {
                 continue;
             }
 
-            var identity = DeviceIdentityHelper.GetPhysicalDeviceId(device);
-            if (string.IsNullOrWhiteSpace(identity))
+            var name = string.IsNullOrWhiteSpace(entry.Name) ? UnavailableDeviceName : entry.Name;
+            var liveDevice = inputDevices.FirstOrDefault(
+                device => string.Equals(device.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+
+            if (liveDevice is null)
             {
-                identity = device.Id;
+                var (missingLabel, missingGlyph) = ResolveCardVisual(name, isInput: true);
+                inputCards.Add(new CardItem(
+                    entry.Id,
+                    missingLabel,
+                    name,
+                    missingGlyph,
+                    false,
+                    IsInput: true,
+                    IsAvailable: false));
+                continue;
             }
 
-            if (!seenInputDevices.Add(identity))
+            if (!seenInputDevices.Add(liveDevice.Id))
             {
                 continue;
             }
 
             var (label, glyph) = ResolveCardVisual(name, isInput: true);
             inputCards.Add(new CardItem(
-                device.Id,
+                liveDevice.Id,
                 label,
                 name,
                 glyph,
-                MatchesAnyId(device, connectedIds),
+                IsConnectedInputDevice(liveDevice, connectedIds),
                 IsInput: true));
         }
 
         var outputCards = new List<CardItem>();
-        foreach (var deviceId in outputIdsTask.Result)
+
+        // 输出段同样照抄卡片：设备现在在就出正常卡片；卡片记着但现在枚举不到
+        // （耳机断开、dongle 拔掉）出置灰卡片留在原位，不再整张卡片凭空消失。
+        var addedOutputDevices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var addedOutputEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var addedMissingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in outputIdsTask.Result)
         {
-            var name = ResolveDeviceName(deviceId, outputLookup);
-            if (string.IsNullOrWhiteSpace(name))
+            if (!addedOutputEntries.Add(entry.Id))
             {
                 continue;
             }
 
+            var name = string.IsNullOrWhiteSpace(entry.Name) ? UnavailableDeviceName : entry.Name;
+            var device = outputDevices.FirstOrDefault(candidate => MatchesOutputDevice(candidate, entry.Id));
+
+            if (device is null)
+            {
+                if (!addedMissingNames.Add(name))
+                {
+                    continue;
+                }
+
+                var (missingLabel, missingGlyph) = ResolveCardVisual(name, isInput: false);
+                outputCards.Add(new CardItem(
+                    entry.Id,
+                    missingLabel,
+                    name,
+                    missingGlyph,
+                    false,
+                    IsInput: false,
+                    IsAvailable: false));
+                continue;
+            }
+
+            var isCurrent = string.Equals(device.Id, currentOutputDeviceId, StringComparison.OrdinalIgnoreCase);
             var (label, glyph) = ResolveCardVisual(name, isInput: false);
             outputCards.Add(new CardItem(
-                deviceId,
+                device.Id,
                 label,
                 name,
                 glyph,
-                string.Equals(deviceId, currentOutputDeviceId, StringComparison.OrdinalIgnoreCase),
+                isCurrent,
                 IsInput: false));
         }
 
         var recentIds = DevicePriorityHelper.GetRecentDeviceIds(_localSettingsService);
         var orderedInputs = OrderCards(inputCards, recentIds);
-        var orderedOutputs = OrderCards(outputCards, recentIds);
+        // 可用的排前面，置灰的（记住了但当前枚举不到）沉到该段末尾；OrderBy 是稳定排序，优先级顺序不变。
+        var orderedOutputs = OrderCards(outputCards, recentIds)
+            .OrderBy(card => card.IsAvailable ? 0 : 1)
+            .ToList();
 
         // 打开后的第一次刷新把顺序定住；之后点卡片触发的刷新只更新描边，卡片不再窜位。
         var frozenInputs = _frozenInputOrder ??= orderedInputs.Select(card => card.DeviceId).ToList();
@@ -373,6 +400,14 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         card.Child = content;
         card.PointerEntered += (_, _) => card.Background = new SolidColorBrush(_palette.CardHover);
         card.PointerExited += (_, _) => card.Background = new SolidColorBrush(_palette.CardFill);
+
+        // 记住了但这会儿枚举不到的设备：留在原位、降透明度，点了不切（避免去切一个不存在的端点）。
+        if (!item.IsAvailable)
+        {
+            card.Opacity = 0.45;
+            return card;
+        }
+
         card.Tapped += OnCardTapped;
         return card;
     }
@@ -381,6 +416,7 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     {
         if (sender is not Border card ||
             !_cardMap.TryGetValue(card, out var item) ||
+            !item.IsAvailable ||
             _isSwitchingByClick)
         {
             return;
@@ -510,44 +546,95 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         return luminance < 128 ? ElementTheme.Dark : ElementTheme.Light;
     }
 
-    private static Dictionary<string, string> BuildInputDeviceLookup(IEnumerable<DeviceInformation> devices)
+    /// <summary>输入设备当前是否已连接：只认原生设备路径，不做跨形态猜测。</summary>
+    private static bool IsConnectedInputDevice(DeviceInformation device, HashSet<string> connectedIds)
     {
-        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var device in devices.Where(device => !string.IsNullOrWhiteSpace(device.Id)))
-        {
-            var name = string.IsNullOrWhiteSpace(device.Name) ? device.Id : device.Name;
-            lookup[device.Id] = name;
+        return !string.IsNullOrWhiteSpace(device.Id) && connectedIds.Contains(device.Id);
+    }
 
-            var physicalId = DeviceIdentityHelper.GetPhysicalDeviceId(device);
-            if (!string.IsNullOrWhiteSpace(physicalId))
+    /// <summary>每台输出设备的长 id 形态，用来判断卡片记下的 id 是否指向这台设备。</summary>
+    private static IEnumerable<string> EnumerateOutputIds(AudioOutputDeviceItem device)
+    {
+        if (!string.IsNullOrWhiteSpace(device.Id))
+        {
+            yield return device.Id;
+        }
+
+        if (!string.IsNullOrWhiteSpace(device.EndpointId))
+        {
+            yield return device.EndpointId;
+        }
+    }
+
+    private static bool MatchesOutputDevice(AudioOutputDeviceItem device, string deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return false;
+        }
+
+        var normalizedId = NormalizeOutputSelectionId(deviceId);
+        foreach (var candidate in EnumerateOutputIds(device))
+        {
+            if (string.Equals(candidate, deviceId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizeOutputSelectionId(candidate), normalizedId, StringComparison.OrdinalIgnoreCase))
             {
-                lookup.TryAdd(physicalId, name);
-                lookup.TryAdd(DeviceIdentityHelper.BuildSelectionId(physicalId, true), name);
+                return true;
             }
         }
 
-        return lookup;
+        return false;
     }
 
-    private static Dictionary<string, string> BuildOutputDeviceLookup(IEnumerable<AudioOutputDeviceItem> devices)
+    /// <summary>面板要显示的一条记录：音频管理卡片里存下来的设备长 id 和设备名。</summary>
+    private sealed record RememberedDeviceEntry(string Id, string Name);
+
+    /// <summary>
+    /// 照抄音频管理卡片里选的设备：deviceIds[i] 配 deviceNames[i]，顺序就是卡片顺序。
+    /// 面板只显示这份数据，不拿系统枚举结果自行推导，避免把没选过的设备显示出来。
+    /// </summary>
+    private async Task<List<RememberedDeviceEntry>> GetRememberedDeviceEntriesAsync(string key)
     {
-        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var device in devices.Where(device => !string.IsNullOrWhiteSpace(device.Id)))
+        var entries = new List<RememberedDeviceEntry>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
         {
-            lookup[device.Id] = string.IsNullOrWhiteSpace(device.Name) ? device.Id : device.Name;
+            var configs = await _localSettingsService.ReadSettingAsync(key, Array.Empty<HotkeyBindingConfig>())
+                ?? Array.Empty<HotkeyBindingConfig>();
+
+            foreach (var config in configs)
+            {
+                var ids = config.DeviceIds ?? [];
+                var names = config.DeviceNames ?? [];
+                for (var index = 0; index < ids.Count; index++)
+                {
+                    var id = ids[index];
+                    if (string.IsNullOrWhiteSpace(id) || !seen.Add(id))
+                    {
+                        continue;
+                    }
+
+                    var name = index < names.Count && !string.IsNullOrWhiteSpace(names[index])
+                        ? names[index]
+                        : string.Empty;
+                    entries.Add(new RememberedDeviceEntry(id, name));
+                }
+
+                if (ids.Count == 0 &&
+                    !string.IsNullOrWhiteSpace(config.DeviceId) &&
+                    seen.Add(config.DeviceId!))
+                {
+                    entries.Add(new RememberedDeviceEntry(config.DeviceId!, string.Empty));
+                }
+            }
+        }
+        catch
+        {
+            // 快捷键绑定读不出来就当没有选设备，面板显示「暂无设备」。
         }
 
-        return lookup;
-    }
-
-    private static string? ResolveDeviceName(string deviceId, Dictionary<string, string> lookup)
-    {
-        if (lookup.TryGetValue(deviceId, out var name) && !string.IsNullOrWhiteSpace(name))
-        {
-            return LooksLikeRawDevicePath(name) ? null : name;
-        }
-
-        return null;
+        return entries;
     }
 
     /// <summary>枚举设备的各种 id 形态：原生设备路径、物理编号、输入/输出角色选择 id。</summary>
@@ -567,38 +654,6 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         yield return physicalId;
         yield return DeviceIdentityHelper.BuildSelectionId(physicalId, true);
         yield return DeviceIdentityHelper.BuildSelectionId(physicalId, false);
-    }
-
-    /// <summary>设备的任意一种 id 形态命中给定集合，即算命中。</summary>
-    private static bool MatchesAnyId(DeviceInformation device, HashSet<string> ids)
-    {
-        if (ids.Count == 0)
-        {
-            return false;
-        }
-
-        foreach (var id in EnumerateDeviceIds(device))
-        {
-            if (!string.IsNullOrWhiteSpace(id) && ids.Contains(id))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool LooksLikeRawDevicePath(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        var text = value.Trim();
-        return text.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("MMDEVAPI", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("SWD#", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>按设备名猜类型，返回卡片大字标签和图标；猜不出时用「音频设备」。</summary>
@@ -713,53 +768,6 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         return DeviceIdentityHelper.BuildSelectionId(id, false);
     }
 
-    /// <summary>取面板要显示的设备集合：优先用已绑定快捷键的设备，其次用主界面选的设备。</summary>
-    private async Task<List<string>> GetSelectedDeviceIdsAsync(string key, string? fallbackDeviceId, bool isInput)
-    {
-        var deviceIds = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        try
-        {
-            var configs = await _localSettingsService.ReadSettingAsync(key, Array.Empty<HotkeyBindingConfig>())
-                ?? Array.Empty<HotkeyBindingConfig>();
-
-            foreach (var config in configs)
-            {
-                var ids = (config.DeviceIds ?? []).Concat(
-                    (config.DevicePhysicalIds ?? []).Select(physicalId =>
-                        DeviceIdentityHelper.BuildSelectionId(physicalId, isInput)));
-                foreach (var id in ids)
-                {
-                    if (string.IsNullOrWhiteSpace(id) || !seen.Add(id))
-                    {
-                        continue;
-                    }
-
-                    deviceIds.Add(id);
-                }
-
-                if ((config.DeviceIds is null || config.DeviceIds.Count == 0) &&
-                    !string.IsNullOrWhiteSpace(config.DeviceId) &&
-                    seen.Add(config.DeviceId!))
-                {
-                    deviceIds.Add(config.DeviceId!);
-                }
-            }
-        }
-        catch
-        {
-            // 快捷键绑定读不出来时退回下面的首选设备。
-        }
-
-        if (deviceIds.Count == 0 && !string.IsNullOrWhiteSpace(fallbackDeviceId))
-        {
-            deviceIds.Add(fallbackDeviceId);
-        }
-
-        return deviceIds;
-    }
-
     private DeviceInformation? FindConnectedDevice(string deviceId)
     {
         var connectedDevices = _connectionService.ConnectedDevices;
@@ -821,7 +829,8 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         string DeviceName,
         string Glyph,
         bool IsActive,
-        bool IsInput);
+        bool IsInput,
+        bool IsAvailable = true);
 
     private sealed class HotkeyBindingConfig
     {
@@ -836,6 +845,10 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
 
         [JsonPropertyName("devicePhysicalIds")]
         public List<string> DevicePhysicalIds { get; set; } = new();
+
+        /// <summary>与 DeviceIds 按下标一一对应的设备显示名，用于当前枚举不到的设备。</summary>
+        [JsonPropertyName("deviceNames")]
+        public List<string> DeviceNames { get; set; } = new();
 
         [JsonPropertyName("deviceId")]
         public string? DeviceId { get; set; }

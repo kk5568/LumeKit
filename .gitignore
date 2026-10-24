@@ -70,6 +70,10 @@ BluetoothAudioReceiver/BundleArtifacts/
 *.db-shm
 *.db-wal
 
+# meow-memory local store and session scratch
+.dsh-meow/
+.tmp/
+
 # External reference sources, vendor drops, and backups
 引用项目/
 
