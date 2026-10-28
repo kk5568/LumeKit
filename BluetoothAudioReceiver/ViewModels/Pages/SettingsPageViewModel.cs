@@ -107,11 +107,6 @@ public partial class SettingsPageViewModel : ObservableRecipient, INavigationAwa
         AutoDayNightUseSystemLocation = _appSettingsService.AutoDayNightUseSystemLocation;
 
         _isInitialized = true;
-
-        if (_themeSelectorService.Theme != ElementTheme.Default)
-        {
-            _themeSelectorService.SetThemeAsync(ElementTheme.Default).Forget(nameof(SettingsPageViewModel));
-        }
     }
 
     private void InitializeAutoBrightnessSettings()
