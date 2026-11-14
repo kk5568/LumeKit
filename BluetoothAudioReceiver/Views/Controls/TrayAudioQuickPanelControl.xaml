@@ -17,7 +17,7 @@
         BorderBrush="{ThemeResource WidgetOverlayStrokeBrush}"
         BorderThickness="1"
         CornerRadius="8">
-        <Grid Padding="14,12,14,12" RowSpacing="8">
+        <Grid x:Name="PanelRoot" Padding="14,12,14,12" RowSpacing="8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>

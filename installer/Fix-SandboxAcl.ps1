@@ -8,9 +8,10 @@
     带这些限制时，WiX 的原生打包工具 wixnative.exe 在「初始化 cab」阶段会被拒绝访问，
     installer\output\build.log 里就是 Error 0x80070005。
 
-    本脚本做两件事：
-      1) icacls /reset /T      —— 把整棵工作区的权限重置为从上级目录继承的默认值
-      2) icacls /setintegritylevel (OI)(CI)M /T —— 把完整性标签统一成 Medium
+    本脚本做三件事：
+      1) 固定工作区根目录的继承权限，并移除已确认的 CodexSandboxUsers 规则
+      2) icacls /reset /T      —— 把子目录权限重置为工作区根目录继承的默认值
+      3) icacls /setintegritylevel (OI)(CI)M /T —— 把完整性标签统一成 Medium
 
     用法（在你自己的 PowerShell 窗口里跑，不要在沙箱终端里跑）：
       powershell -ExecutionPolicy Bypass -File installer\Fix-SandboxAcl.ps1
@@ -45,6 +46,41 @@ function Get-AclRestrictions {
     })
 }
 
+function Remove-SandboxRulesFromRoot {
+    param([string]$Root)
+
+    # 上级目录可能继续继承 CodexSandboxUsers。用 icacls 断开继承并保留现有
+    # 权限，再只移除已确认的沙箱主体，避免修改整个 ProjectwithAI2026 目录。
+    $acl = Get-Acl -LiteralPath $Root
+    $sandboxIdentities = @($acl.Access | Where-Object {
+        $identity = "$($_.IdentityReference)"
+        ($identity -match 'CodexSandbox') -or ($identity -match '^S-1-4-')
+    } | ForEach-Object {
+        "$($_.IdentityReference)"
+    } | Sort-Object -Unique)
+
+    $inheritOutput = & icacls $Root /inheritance:d /C /Q 2>&1
+    $inheritExitCode = $LASTEXITCODE
+    if ($inheritExitCode -ne 0) {
+        throw "icacls /inheritance:d 失败（退出码 $inheritExitCode）。"
+    }
+
+    # 不使用 Set-Acl：它会尝试重写完整性标签，并要求 SeSecurityPrivilege。
+    foreach ($identity in $sandboxIdentities) {
+        $icaclsIdentity = $identity
+        if ($identity -match '^S-1-') {
+            $icaclsIdentity = "*$identity"
+        }
+        $removeOutput = & icacls $Root /remove:g $icaclsIdentity /C /Q 2>&1
+        $removeExitCode = $LASTEXITCODE
+        if ($removeExitCode -ne 0) {
+            throw "icacls /remove:g 失败（退出码 $removeExitCode）：$identity"
+        }
+    }
+
+    return $sandboxIdentities.Count
+}
+
 if (-not (Test-Path -LiteralPath $Path)) {
     throw "工作区路径不存在：$Path"
 }
@@ -62,16 +98,37 @@ Write-Host '检测到以下沙箱访问限制：' -ForegroundColor Yellow
 $restrictions | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkYellow }
 Write-Host ''
 Write-Host '即将执行：' -ForegroundColor Cyan
-Write-Host '  1) 重置整棵工作区的权限为「继承默认值」'
-Write-Host '  2) 把整棵工作区的完整性标签统一为 Medium'
+Write-Host '  1) 固定工作区根目录权限并移除已确认的沙箱主体'
+Write-Host '  2) 重置子目录权限为工作区根目录继承的默认值'
+Write-Host '  3) 把整棵工作区的完整性标签统一为 Medium'
 Write-Host ''
 
 $previous = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 
+# 先处理根目录，避免 /reset 后又从上级目录继承回 CodexSandboxUsers。
+$removedRuleCount = Remove-SandboxRulesFromRoot -Root $Path
+Write-Host "  已移除根目录沙箱主体规则：$removedRuleCount 条"
+
 # 输出先收进变量：失败时 icacls 会为每个文件打一行「拒绝访问」，直接连到控制台会刷屏。
-$resetOutput = & icacls $Path /reset /T /C /Q 2>&1
+$childrenPath = Join-Path $Path '*'
+$resetOutput = & icacls $childrenPath /reset /T /C /Q 2>&1
 $resetExitCode = $LASTEXITCODE
+
+    # /reset 可能把根目录已有的显式规则保留下来；最后再清一次根目录，
+    # 确保复查结果与实际 ACL 一致。
+    foreach ($identity in $sandboxIdentities) {
+        $icaclsIdentity = $identity
+        if ($identity -match '^S-1-') {
+            $icaclsIdentity = "*$identity"
+        }
+        $removeOutput = & icacls $Path /remove:g $icaclsIdentity /C /Q 2>&1
+        $removeExitCode = $LASTEXITCODE
+        if ($removeExitCode -ne 0) {
+            throw "icacls /remove:g 失败（退出码 $removeExitCode）：$identity"
+        }
+    }
+
 $integrityExitCode = 0
 $integrityOutput = @()
 if (-not $SkipIntegrityLevel) {

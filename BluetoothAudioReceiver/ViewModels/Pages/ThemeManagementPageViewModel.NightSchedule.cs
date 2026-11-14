@@ -26,6 +26,14 @@ public partial class ThemeManagementPageViewModel
             return;
         }
 
+        if (AutoDayNightNightStartTime is null ||
+            AutoDayNightNightEndTime is null ||
+            AutoDayNightNightStartTime == AutoDayNightNightEndTime)
+        {
+            GetNotificationService().Show("自定义时间无效", "开始和结束时间必须不同", "请设置完整的夜间开始和结束时间。");
+            return;
+        }
+
         await _appSettingsService.SetAutoDayNightNightStartTimeAsync(AutoDayNightNightStartTime);
         await _appSettingsService.SetAutoDayNightNightEndTimeAsync(AutoDayNightNightEndTime);
         RefreshNightScheduleText();
@@ -65,9 +73,16 @@ public partial class ThemeManagementPageViewModel
             return;
         }
 
-        _appSettingsService.SetAutoDayNightUseCustomNightScheduleAsync(value).Forget(nameof(ThemeManagementPageViewModel));
-        _ = _autoDayNightService.RefreshAsync();
-        UpdateSunTimesTextAsync().Forget(nameof(ThemeManagementPageViewModel));
+        if (value)
+        {
+            SelectNightScheduleSource(NightScheduleSource.CustomSchedule);
+            return;
+        }
+
+        PersistAndRefreshAsync(
+            _appSettingsService.SetAutoDayNightUseCustomNightScheduleAsync(value),
+            refreshSunTimes: true)
+            .Forget(nameof(ThemeManagementPageViewModel));
     }
 
     private void LoadNightScheduleFromSettings()

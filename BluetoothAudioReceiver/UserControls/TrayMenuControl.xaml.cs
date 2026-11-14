@@ -7,21 +7,15 @@ using H.NotifyIcon;
 using H.NotifyIcon.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Windows.Devices.Enumeration;
 using BluetoothAudioReceiver.DeskBoxFloating.Models;
 using BluetoothAudioReceiver.Views.Windows;
-using DrawingPoint = System.Drawing.Point;
 
 namespace BluetoothAudioReceiver.UserControls;
 
 public sealed partial class TrayMenuControl : UserControl
 {
-    private const double TrayMenuItemWidth = 176;
-    private const int TrayContextMenuEstimatedWidth = (int)TrayMenuItemWidth + 16;
-    private const int TrayContextMenuFallbackOffsetPixels = 24;
-
     // 浮层已经被这次点击的“点外部关闭”关掉时，不要让同一次托盘左键又把它打开。
     private static readonly TimeSpan QuickPanelReopenGuard = TimeSpan.FromMilliseconds(400);
 
@@ -29,8 +23,6 @@ public sealed partial class TrayMenuControl : UserControl
     private readonly IAudioPlaybackConnectionService _connectionService;
     private Window? _trayWindow;
     private TaskbarIcon? _trayIcon;
-    private MenuFlyout? _contextMenu;
-    private MenuFlyoutItem? _trayShowWindowItem;
     private readonly IDeskBoxFloatingService _floatingService;
     private TrayAudioQuickPanelControl? _quickPanelContent;
     private bool _quickPanelVisible;
@@ -40,7 +32,6 @@ public sealed partial class TrayMenuControl : UserControl
     public TrayMenuControl()
     {
         InitializeComponent();
-        _contextMenu = CreateContextMenu();
         CreateTrayHostWindow();
 
         _floatingService = Ioc.Default.GetRequiredService<IDeskBoxFloatingService>();
@@ -69,11 +60,9 @@ public sealed partial class TrayMenuControl : UserControl
             ContextMenuMode = ContextMenuMode.SecondWindow,
             MenuActivation = PopupActivationMode.None,
             NoLeftClickDelay = true,
-            RightClickCommand = new RelayCommand(ShowContextMenuFromTray),
+            RightClickCommand = new RelayCommand(ShowQuickPanel),
             LeftClickCommand = new RelayCommand(ShowQuickPanel),
-            ContextFlyout = _contextMenu
         };
-        _trayIcon.SecondWindowContextMenuOpened += OnSecondWindowContextMenuOpened;
 
         if (_trayWindow.Content is null)
         {
@@ -207,6 +196,9 @@ public sealed partial class TrayMenuControl : UserControl
     {
         var content = new TrayAudioQuickPanelControl();
         content.PrepareForHost();
+        content.ShowMainWindowRequested += ShowWindow;
+        content.RestartRequested += RestartApp;
+        content.ExitRequested += ExitAppAsync;
         return content;
     }
 
@@ -278,8 +270,7 @@ public sealed partial class TrayMenuControl : UserControl
                 return new global::Windows.Graphics.PointInt32(iconRect.Left, iconRect.Top);
             }
 
-            var point = GetTrayContextMenuAnchorPoint(new DrawingPoint(cursor.X, cursor.Y));
-            return new global::Windows.Graphics.PointInt32(point.X, point.Y);
+            return new global::Windows.Graphics.PointInt32(cursor.X, cursor.Y);
         }
         catch
         {
@@ -288,315 +279,14 @@ public sealed partial class TrayMenuControl : UserControl
     }
 
     [RelayCommand]
-    private void ExitApp()
+    private async Task ExitAppAsync()
     {
         App.MainWindow.Hide();
         DisposeTrayIconControl();
 #if TRAY_ICON
         App.CanCloseWindow = true;
 #endif
-        App.MainWindow.Close();
-    }
-
-    private MenuFlyout CreateContextMenu()
-    {
-        var menu = new MenuFlyout
-        {
-            ShouldConstrainToRootBounds = false,
-            MenuFlyoutPresenterStyle = CreateTrayMenuPresenterStyle()
-        };
-
-        var showWindowItem = CreateMenuItem(
-            "主界面",
-            "\uE80F",
-            () => RunTrayMenuAction(menu, ShowWindow));
-        showWindowItem.Loaded += OnMenuItemLoaded;
-        _trayShowWindowItem = showWindowItem;
-
-        var restartItem = CreateMenuItem(
-            "重启",
-            "\uE777",
-            () => RunTrayMenuAction(menu, RestartApp));
-
-        var exitItem = CreateMenuItem(
-            "退出",
-            "\uE711",
-            () => RunTrayMenuAction(menu, ExitApp));
-
-        menu.Items.Add(showWindowItem);
-        menu.Items.Add(new MenuFlyoutSeparator());
-        menu.Items.Add(restartItem);
-        menu.Items.Add(exitItem);
-
-        return menu;
-    }
-
-    private static MenuFlyoutItem CreateMenuItem(
-        string text,
-        string glyph,
-        Action action)
-    {
-        var item = new MenuFlyoutItem
-        {
-            Text = text,
-            Width = TrayMenuItemWidth,
-            Icon = new FontIcon
-            {
-                Glyph = glyph,
-                FontFamily = new FontFamily("Segoe Fluent Icons")
-            }
-        };
-        item.Click += (_, _) => action();
-        return item;
-    }
-
-    private static void RunTrayMenuAction(MenuFlyout menu, Action action)
-    {
-        menu.Hide();
-        action();
-    }
-
-    private static Style CreateTrayMenuPresenterStyle()
-    {
-        var style = new Style(typeof(MenuFlyoutPresenter))
-        {
-            BasedOn = Application.Current.Resources[typeof(MenuFlyoutPresenter)] as Style
-        };
-        style.Setters.Add(new Setter(
-            ScrollViewer.VerticalScrollModeProperty,
-            ScrollMode.Disabled));
-        style.Setters.Add(new Setter(
-            ScrollViewer.VerticalScrollBarVisibilityProperty,
-            ScrollBarVisibility.Disabled));
-        style.Setters.Add(new Setter(
-            FrameworkElement.MaxHeightProperty,
-            double.PositiveInfinity));
-        return style;
-    }
-
-    private static void OnMenuItemLoaded(object sender, RoutedEventArgs args)
-    {
-        if (sender is not MenuFlyoutItemBase item)
-        {
-            return;
-        }
-
-        ApplySecondWindowMenuPresenterSettings(item);
-    }
-
-    private void OnSecondWindowContextMenuOpened(object? sender, EventArgs args)
-    {
-        if (_trayShowWindowItem is not null)
-        {
-            ApplySecondWindowMenuPresenterSettings(_trayShowWindowItem);
-        }
-    }
-
-    private static void ApplySecondWindowMenuPresenterSettings(MenuFlyoutItemBase item)
-    {
-        var presenter = FindVisualAncestor<MenuFlyoutPresenter>(item);
-        if (presenter is null)
-        {
-            return;
-        }
-
-        presenter.SetValue(ScrollViewer.VerticalScrollModeProperty, ScrollMode.Disabled);
-        presenter.SetValue(
-            ScrollViewer.VerticalScrollBarVisibilityProperty,
-            ScrollBarVisibility.Disabled);
-        presenter.MaxHeight = double.PositiveInfinity;
-
-        if (presenter.XamlRoot is null)
-        {
-            return;
-        }
-
-        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(presenter.XamlRoot))
-        {
-            if (popup.Child is not null && ContainsVisual(popup.Child, presenter))
-            {
-                popup.ShouldConstrainToRootBounds = false;
-                break;
-            }
-        }
-    }
-
-    private static T? FindVisualAncestor<T>(DependencyObject child)
-        where T : DependencyObject
-    {
-        for (DependencyObject? current = child;
-             current is not null;
-             current = VisualTreeHelper.GetParent(current))
-        {
-            if (current is T match)
-            {
-                return match;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool ContainsVisual(DependencyObject root, DependencyObject target)
-    {
-        if (ReferenceEquals(root, target))
-        {
-            return true;
-        }
-
-        int childCount = VisualTreeHelper.GetChildrenCount(root);
-        for (int index = 0; index < childCount; index++)
-        {
-            if (ContainsVisual(VisualTreeHelper.GetChild(root, index), target))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void ShowContextMenuFromTray()
-    {
-        if (_disposed ||
-            _contextMenu is null ||
-            _trayIcon is null ||
-            !_trayIcon.IsCreated ||
-            !GetCursorPos(out var cursor))
-        {
-            return;
-        }
-
-        var fallbackPoint = new DrawingPoint(cursor.X, cursor.Y);
-        DrawingPoint point;
-        try
-        {
-            point = GetTrayContextMenuAnchorPoint(fallbackPoint);
-        }
-        catch
-        {
-            point = fallbackPoint;
-        }
-
-        try
-        {
-            _trayIcon.ShowContextMenu(point);
-        }
-        catch
-        {
-            // The tray icon can disappear while Explorer refreshes the
-            // notification area. Ignore that click instead of terminating.
-        }
-    }
-
-    private DrawingPoint GetTrayContextMenuAnchorPoint(DrawingPoint fallbackPoint)
-    {
-        if (TryGetTrayIconIdentity(out var windowHandle, out var trayIconId) &&
-            TryGetNotifyIconRect(windowHandle, trayIconId, out var iconRect) &&
-            IsUsableTrayIconRect(iconRect))
-        {
-            return GetTrayContextMenuAnchorPointFromIconRect(iconRect, fallbackPoint);
-        }
-
-        return GetFallbackTrayContextMenuAnchorPoint(fallbackPoint);
-    }
-
-    private static DrawingPoint GetTrayContextMenuAnchorPointFromIconRect(
-        NativeRect iconRect,
-        DrawingPoint fallbackPoint)
-    {
-        int centerX = iconRect.Left + ((iconRect.Right - iconRect.Left) / 2);
-        int centerY = iconRect.Top + ((iconRect.Bottom - iconRect.Top) / 2);
-        var anchor = new DrawingPoint(
-            centerX - (TrayContextMenuEstimatedWidth / 2),
-            centerY);
-
-        if (!TryGetMonitorWorkArea(centerX, centerY, out var monitor, out var workArea))
-        {
-            return anchor;
-        }
-
-        anchor = GetNearestTaskbarEdge(iconRect, monitor, workArea) switch
-        {
-            TaskbarEdge.Bottom => new DrawingPoint(anchor.X, workArea.Bottom - 1),
-            TaskbarEdge.Top => new DrawingPoint(anchor.X, workArea.Top),
-            TaskbarEdge.Right => new DrawingPoint(workArea.Right - 1, centerY),
-            TaskbarEdge.Left => new DrawingPoint(workArea.Left, centerY),
-            _ => GetFallbackTrayContextMenuAnchorPoint(fallbackPoint)
-        };
-
-        return ClampPointToRect(anchor, monitor);
-    }
-
-    private static DrawingPoint GetFallbackTrayContextMenuAnchorPoint(DrawingPoint point)
-    {
-        if (!TryGetMonitorWorkArea(point.X, point.Y, out var monitor, out var workArea))
-        {
-            return new DrawingPoint(
-                point.X - (TrayContextMenuEstimatedWidth / 2),
-                point.Y - TrayContextMenuFallbackOffsetPixels);
-        }
-
-        int x = point.X - (TrayContextMenuEstimatedWidth / 2);
-        int y = point.Y;
-        bool moved = false;
-
-        if (workArea.Bottom < monitor.Bottom && y >= workArea.Bottom)
-        {
-            y = workArea.Bottom - 1;
-            moved = true;
-        }
-        else if (workArea.Top > monitor.Top && y <= workArea.Top)
-        {
-            y = workArea.Top;
-            moved = true;
-        }
-
-        if (workArea.Right < monitor.Right && x >= workArea.Right)
-        {
-            x = workArea.Right - 1;
-            moved = true;
-        }
-        else if (workArea.Left > monitor.Left && x <= workArea.Left)
-        {
-            x = workArea.Left;
-            moved = true;
-        }
-
-        if (!moved)
-        {
-            int distanceToBottom = Math.Abs(monitor.Bottom - y);
-            int distanceToTop = Math.Abs(y - monitor.Top);
-            int distanceToRight = Math.Abs(monitor.Right - x);
-            int distanceToLeft = Math.Abs(x - monitor.Left);
-            int nearestDistance = Math.Min(
-                Math.Min(distanceToBottom, distanceToTop),
-                Math.Min(distanceToRight, distanceToLeft));
-
-            if (nearestDistance == distanceToBottom)
-            {
-                y -= TrayContextMenuFallbackOffsetPixels;
-            }
-            else if (nearestDistance == distanceToTop)
-            {
-                y += TrayContextMenuFallbackOffsetPixels;
-            }
-            else if (nearestDistance == distanceToRight)
-            {
-                x -= TrayContextMenuFallbackOffsetPixels;
-            }
-            else
-            {
-                x += TrayContextMenuFallbackOffsetPixels;
-            }
-        }
-
-        return ClampPointToRect(new DrawingPoint(x, y), monitor);
-    }
-
-    private static bool IsUsableTrayIconRect(NativeRect rect)
-    {
-        return rect.Right > rect.Left && rect.Bottom > rect.Top;
+        await App.ExitAsync();
     }
 
     private static TaskbarEdge GetNearestTaskbarEdge(
@@ -651,13 +341,9 @@ public sealed partial class TrayMenuControl : UserControl
             : TaskbarEdge.Left;
     }
 
-    private static DrawingPoint ClampPointToRect(
-        DrawingPoint point,
-        NativeRect rect)
+    private static bool IsUsableTrayIconRect(NativeRect rect)
     {
-        return new DrawingPoint(
-            Math.Clamp(point.X, rect.Left, rect.Right - 1),
-            Math.Clamp(point.Y, rect.Top, rect.Bottom - 1));
+        return rect.Right > rect.Left && rect.Bottom > rect.Top;
     }
 
     private static bool TryGetMonitorWorkArea(
@@ -766,14 +452,10 @@ public sealed partial class TrayMenuControl : UserControl
             // ignore
         }
 
-        _contextMenu?.Hide();
-        _contextMenu = null;
-
         try
         {
             if (_trayIcon is not null)
             {
-                _trayIcon.SecondWindowContextMenuOpened -= OnSecondWindowContextMenuOpened;
                 _trayIcon.Dispose();
                 _trayIcon = null;
             }

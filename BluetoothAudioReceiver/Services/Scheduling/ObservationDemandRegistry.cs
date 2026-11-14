@@ -3,6 +3,13 @@ using Serilog;
 
 namespace BluetoothAudioReceiver.Services;
 
+internal enum ObservationDemandPurpose
+{
+    Required,
+    BackgroundCache,
+    WindowPresentation
+}
+
 /// <summary>
 /// 调度中心的需求登记表。各模块在这里登记「我需要哪些系统信息」和「我需要哪些事件源」，
 /// 调度中心按所有登记项的并集工作；没人登记的信息一条都不采，没人登记的事件源一个都不订。
@@ -19,7 +26,8 @@ internal sealed class ObservationDemandRegistry
     /// <summary>
     /// 登记一个模块的采集需求。调用方应持有返回的句柄，模块停止时释放。
     /// </summary>
-    public IDisposable Register(string owner, Func<IReadOnlyCollection<ObservationInfoKind>> demandProvider)
+    public IDisposable Register(string owner, Func<IReadOnlyCollection<ObservationInfoKind>> demandProvider,
+        ObservationDemandPurpose purpose = ObservationDemandPurpose.Required)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ArgumentNullException.ThrowIfNull(demandProvider);
@@ -27,7 +35,7 @@ internal sealed class ObservationDemandRegistry
         var registration = new Registration<ObservationInfoKind>(
             owner,
             demandProvider,
-            OnInfoRegistrationDisposed);
+            OnInfoRegistrationDisposed, purpose);
 
         lock (_syncRoot)
         {
@@ -66,13 +74,25 @@ internal sealed class ObservationDemandRegistry
     public IReadOnlyCollection<ObservationInfoKind> GetUnion()
         => Collect(_infoRegistrations, nameof(GetUnion));
 
+    public IReadOnlyCollection<ObservationInfoKind> GetUnion(ObservationDemandPurpose purpose)
+        => Collect(_infoRegistrations, nameof(GetUnion), purpose);
+
+    public IReadOnlyCollection<ObservationInfoKind> GetAllowedUnion(ObservationSceneSnapshot scene, bool includeDeferred)
+    {
+        if (scene.Pause) return Array.Empty<ObservationInfoKind>();
+        var items = GetUnion(ObservationDemandPurpose.Required).ToHashSet();
+        if (!scene.AppBackground && !scene.Idle) items.UnionWith(GetUnion(ObservationDemandPurpose.WindowPresentation));
+        if (!scene.Reduce || includeDeferred) items.UnionWith(GetUnion(ObservationDemandPurpose.BackgroundCache));
+        return items;
+    }
+
     /// <summary>
     /// 所有模块需要的事件源并集。
     /// </summary>
     public IReadOnlyCollection<ObservationSourceKind> GetSourceUnion()
         => Collect(_sourceRegistrations, nameof(GetSourceUnion));
 
-    private HashSet<T> Collect<T>(List<Registration<T>> registrations, string caller)
+    private HashSet<T> Collect<T>(List<Registration<T>> registrations, string caller, ObservationDemandPurpose? purpose = null)
         where T : struct, Enum
     {
         Registration<T>[] snapshot;
@@ -84,6 +104,7 @@ internal sealed class ObservationDemandRegistry
         var union = new HashSet<T>();
         foreach (var registration in snapshot)
         {
+            if (purpose.HasValue && registration.Purpose != purpose.Value) continue;
             IReadOnlyCollection<T>? demanded = null;
             try
             {
@@ -137,14 +158,17 @@ internal sealed class ObservationDemandRegistry
         public Registration(
             string owner,
             Func<IReadOnlyCollection<T>> demandProvider,
-            Action<Registration<T>> onDispose)
+            Action<Registration<T>> onDispose,
+            ObservationDemandPurpose purpose = ObservationDemandPurpose.Required)
         {
             Owner = owner;
             DemandProvider = demandProvider;
             _onDispose = onDispose;
+            Purpose = purpose;
         }
 
         public string Owner { get; }
+        public ObservationDemandPurpose Purpose { get; }
 
         public Func<IReadOnlyCollection<T>> DemandProvider { get; }
 

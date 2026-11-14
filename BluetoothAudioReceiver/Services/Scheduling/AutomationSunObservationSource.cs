@@ -54,7 +54,8 @@ internal sealed class AutomationSunObservationSource : IDisposable
                 {
                     await Task.Delay(delay, token);
                 }
-
+                token.ThrowIfCancellationRequested();
+                if (_isLocked()) continue;
                 await RefreshSunScheduleAsync(token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)

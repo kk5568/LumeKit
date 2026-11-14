@@ -35,9 +35,49 @@ internal sealed class AutomationPipelineRepository : IAutomationPipelineReposito
 
     public event EventHandler? PipelinesChanged;
 
+    public async Task EnsureSystemPerformanceRulesAsync()
+    {
+        var next = _pipelines
+            .Where(item => item.SystemRuleId is not "performance.ac.quiet" and not "performance.ac.balanced" and not "performance.ac.high" and not "performance.battery.quiet" and not "performance.battery.balanced" and not "performance.battery.high")
+            .ToList();
+        var changed = next.Count != _pipelines.Count;
+        foreach (var template in AutomationPerformanceRuleCatalog.CreateDefaults())
+        {
+            if (next.Any(item => string.Equals(item.SystemRuleId, template.SystemRuleId, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            next.Add(template);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await ReplaceAllAsync(next);
+        }
+    }
+
+    public bool IsSystemRule(Guid pipelineId)
+        => _pipelines.Any(item => item.Id == pipelineId && !string.IsNullOrWhiteSpace(item.SystemRuleId));
+
     public async Task ReplaceAllAsync(IEnumerable<AutomationPipeline> pipelines)
     {
-        var next = NormalizePipelines(pipelines).ToList();
+        var requested = pipelines.ToList();
+        foreach (var protectedPipeline in _pipelines.Where(item => !string.IsNullOrWhiteSpace(item.SystemRuleId) && !IsObsoletePerformanceRule(item.SystemRuleId)))
+        {
+            var replacement = requested.FirstOrDefault(item => item.Id == protectedPipeline.Id);
+            if (replacement is null)
+            {
+                requested.Add(protectedPipeline);
+                continue;
+            }
+
+            replacement.SystemRuleId = protectedPipeline.SystemRuleId;
+            replacement.IsEnabled = true;
+        }
+
+        var next = NormalizePipelines(requested).ToList();
 
         await _saveGate.WaitAsync();
         try
@@ -184,6 +224,7 @@ internal sealed class AutomationPipelineRepository : IAutomationPipelineReposito
             .ToList();
         foreach (var pipeline in normalized)
         {
+            pipeline.SystemRuleId = string.IsNullOrWhiteSpace(pipeline.SystemRuleId) ? null : pipeline.SystemRuleId.Trim();
             pipeline.Name = AutomationDisplayTextConverter.ToDisplayText(pipeline.Name);
             pipeline.Category = AutomationDisplayTextConverter.ToDisplayText(pipeline.Category);
             pipeline.Options ??= new AutomationPipelineOptions();
@@ -197,12 +238,38 @@ internal sealed class AutomationPipelineRepository : IAutomationPipelineReposito
             foreach (var step in pipeline.Steps)
             {
                 step.ActionType = NormalizeStepActionType(step.ActionType);
+                if (string.Equals(pipeline.SystemRuleId, AutomationPerformanceRuleCatalog.Ac, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(pipeline.SystemRuleId, AutomationPerformanceRuleCatalog.Battery, StringComparison.OrdinalIgnoreCase))
+                {
+                    step.ParametersJson = NormalizeDynamicPerformanceShortcut(step);
+                }
                 step.ParametersJson = NormalizeStepParameters(step.ActionType, step.ParametersJson);
             }
 
         }
 
         return normalized;
+    }
+
+    private static bool IsObsoletePerformanceRule(string? id)
+        => id is "performance.ac.quiet" or "performance.ac.balanced" or "performance.ac.high" or "performance.battery.quiet" or "performance.battery.balanced" or "performance.battery.high";
+
+    private static string NormalizeDynamicPerformanceShortcut(AutomationStepDefinition step)
+    {
+        var selection = AutomationActionParameterHelper.ReadValue(step.ParametersJson);
+        if (!string.IsNullOrWhiteSpace(selection))
+        {
+            return step.ParametersJson;
+        }
+
+        var fallback = step.DynamicPerformanceStage switch
+        {
+            "quiet" => "安静模式 | Ctrl+Shift+Alt+F16",
+            "balanced" => "平衡模式 | Ctrl+Shift+Alt+F17",
+            "high" => "增强模式 | Ctrl+Shift+Alt+F18",
+            _ => string.Empty
+        };
+        return AutomationActionParameterHelper.BuildValue(fallback);
     }
 
     private static bool IsLegacyCompanionRestorePipeline(AutomationPipeline pipeline)

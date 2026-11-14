@@ -62,6 +62,46 @@ public interface IAppSettingsService
 
     Task SetHideNotificationWhenTrayPopupVisibleAsync(bool enabled);
 
+    bool IslandEnabled { get; }
+
+    Task SetIslandEnabledAsync(bool enabled);
+
+    string IslandMaterialType { get; }
+
+    Task SetIslandMaterialTypeAsync(string materialType);
+
+    string IslandLayoutPreset { get; }
+
+    Task SetIslandLayoutPresetAsync(string preset);
+
+    int IslandWidth { get; }
+
+    Task SetIslandWidthAsync(int width);
+
+    int IslandHeight { get; }
+
+    Task SetIslandHeightAsync(int height);
+
+    int IslandTopMargin { get; }
+
+    Task SetIslandTopMarginAsync(int margin);
+
+    string IslandHorizontalPosition { get; }
+
+    Task SetIslandHorizontalPositionAsync(string position);
+
+    int IslandHorizontalOffset { get; }
+
+    Task SetIslandHorizontalOffsetAsync(int offset);
+
+    bool IslandAutoBrightnessStatusEnabled { get; }
+
+    Task SetIslandAutoBrightnessStatusEnabledAsync(bool enabled);
+
+    bool IslandAutoBrightnessDetailsEnabled { get; }
+
+    Task SetIslandAutoBrightnessDetailsEnabledAsync(bool enabled);
+
     int DeskBoxFloatingTestDurationMilliseconds { get; }
 
     Task SetDeskBoxFloatingTestDurationMillisecondsAsync(int milliseconds);
@@ -86,6 +126,10 @@ public interface IAppSettingsService
     string PreferredOutputDeviceId { get; }
 
     Task SetPreferredOutputDeviceIdAsync(string deviceId);
+
+    string PreferredCameraDeviceId { get; }
+
+    Task SetPreferredCameraDeviceIdAsync(string deviceId);
 
     string InputHotkey { get; }
 
@@ -123,14 +167,6 @@ public interface IAppSettingsService
 
     Task SetAutoBrightnessOnForegroundCooldownMinutesAsync(int minutes);
 
-    bool DisableNightLightEnabled { get; }
-
-    Task SetDisableNightLightEnabledAsync(bool enabled);
-
-    bool DisableNightLightAtNightEnabled { get; }
-
-    Task SetDisableNightLightAtNightEnabledAsync(bool enabled);
-
     bool AutoDayNightEnabled { get; }
 
     Task SetAutoDayNightEnabledAsync(bool enabled);
@@ -150,6 +186,10 @@ public interface IAppSettingsService
     bool AutoDayNightUseCustomNightSchedule { get; }
 
     Task SetAutoDayNightUseCustomNightScheduleAsync(bool enabled);
+
+    bool AutoDayNightUseNightLight { get; }
+
+    Task SetAutoDayNightUseNightLightAsync(bool enabled);
 
     string AutoDayNightNightStartTime { get; }
 

@@ -1,28 +1,21 @@
 using BluetoothAudioReceiver.Automation.Models;
-using Windows.System.Power;
 
 namespace BluetoothAudioReceiver.Services;
 
 internal sealed class AutomationObservationRequestPlanner
 {
     private readonly ObservationDemandRegistry _demandRegistry;
-    private readonly Func<string?> _getForegroundProcessName;
-    private readonly Func<string?> _getForegroundWindowTitle;
-    private readonly Func<bool> _isForegroundFullscreen;
-    private readonly Func<string?, string?, bool> _isLikelyGame;
+    private readonly ObservationScenePolicy _scenePolicy;
+    private readonly Func<IReadOnlyCollection<ObservationInfoKind>> _getSunDemand;
 
     public AutomationObservationRequestPlanner(
         ObservationDemandRegistry demandRegistry,
-        Func<string?> getForegroundProcessName,
-        Func<string?> getForegroundWindowTitle,
-        Func<bool> isForegroundFullscreen,
-        Func<string?, string?, bool> isLikelyGame)
+        ObservationScenePolicy scenePolicy,
+        Func<IReadOnlyCollection<ObservationInfoKind>> getSunDemand)
     {
         _demandRegistry = demandRegistry;
-        _getForegroundProcessName = getForegroundProcessName;
-        _getForegroundWindowTitle = getForegroundWindowTitle;
-        _isForegroundFullscreen = isForegroundFullscreen;
-        _isLikelyGame = isLikelyGame;
+        _scenePolicy = scenePolicy;
+        _getSunDemand = getSunDemand;
     }
 
     public ObservationRequest Create(string reason, Guid? correlationId = null, bool isLocked = false)
@@ -33,10 +26,10 @@ internal sealed class AutomationObservationRequestPlanner
             requestCorrelationId = Guid.NewGuid();
         }
 
-        if (isLocked)
+        if (isLocked || _scenePolicy.Current.Pause)
         {
             return new ObservationRequest(
-                ObservationUsageScene.Locked,
+                _scenePolicy.Current.Suspended ? ObservationUsageScene.Suspended : ObservationUsageScene.Locked,
                 reason,
                 Array.Empty<ObservationInfoKind>(),
                 requestCorrelationId);
@@ -44,15 +37,16 @@ internal sealed class AutomationObservationRequestPlanner
 
         var scene = ResolveScene(reason);
 
-        // 采集范围只由各模块登记的并集决定，不再按场景裁剪。
-        // 场景仅作为日志和诊断标签保留。
-        var items = _demandRegistry.GetUnion().ToHashSet();
+        var periodic = reason.Split('+').All(segment => segment is "sun-loop" or "scene-check" or "cache-refresh");
+        var items = _demandRegistry.GetAllowedUnion(_scenePolicy.Current,
+            includeDeferred: !periodic || reason.Contains("cache-refresh", StringComparison.OrdinalIgnoreCase)).ToHashSet();
 
         // 只采这次事件真正可能改变的部分；认不出来的原因一律全量，宁可多采不漏采。
-        if (TryResolveDirtyKinds(reason) is { Count: > 0 } dirtyKinds)
+        if (TryResolveDirtyKinds(reason) is { } dirtyKinds)
         {
             items.IntersectWith(dirtyKinds);
         }
+        if (items.Contains(ObservationInfoKind.ThemeMode)) items.UnionWith(_getSunDemand());
 
         return new ObservationRequest(scene, reason, items.ToArray(), requestCorrelationId);
     }
@@ -61,7 +55,7 @@ internal sealed class AutomationObservationRequestPlanner
     /// 把触发这次刷新的原因翻译成"可能变了"的采集项。返回 null 表示按全量处理。
     /// 合并原因用 "+" 连接，任何一段认不出来就退回全量。
     /// </summary>
-    private static HashSet<ObservationInfoKind>? TryResolveDirtyKinds(string reason)
+    private HashSet<ObservationInfoKind>? TryResolveDirtyKinds(string reason)
     {
         var kinds = new HashSet<ObservationInfoKind>();
 
@@ -73,11 +67,18 @@ internal sealed class AutomationObservationRequestPlanner
             }
         }
 
-        return kinds.Count == 0 ? null : kinds;
+        return kinds;
     }
 
-    private static bool TryResolveSegment(string segment, HashSet<ObservationInfoKind> kinds)
+    private bool TryResolveSegment(string segment, HashSet<ObservationInfoKind> kinds)
     {
+        if (segment.StartsWith("session-", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(segment, "system-power-resume", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(segment, "scene-changed", StringComparison.OrdinalIgnoreCase))
+        {
+            kinds.UnionWith(_demandRegistry.GetAllowedUnion(_scenePolicy.Current, includeDeferred: false));
+            return true;
+        }
         if (segment.StartsWith("system-power-", StringComparison.OrdinalIgnoreCase))
         {
             kinds.Add(ObservationInfoKind.PowerState);
@@ -93,8 +94,26 @@ internal sealed class AutomationObservationRequestPlanner
 
         switch (segment.ToLowerInvariant())
         {
+            case "sun-loop":
+            case "sun-time-updated":
+                kinds.UnionWith(_getSunDemand());
+                kinds.Add(ObservationInfoKind.ThemeMode);
+                return true;
+
+            case "scene-check":
+                kinds.Add(ObservationInfoKind.ForegroundWindow);
+                return true;
+
+            case "cache-refresh":
+                kinds.UnionWith(_demandRegistry.GetUnion(ObservationDemandPurpose.BackgroundCache));
+                return true;
+
             case "audio-playback-connected":
             case "audio-playback-disconnected":
+                kinds.Add(ObservationInfoKind.BluetoothState);
+                kinds.Add(ObservationInfoKind.AudioRoute);
+                return true;
+
             case "default-output-changed":
                 kinds.Add(ObservationInfoKind.AudioRoute);
                 return true;
@@ -119,8 +138,7 @@ internal sealed class AutomationObservationRequestPlanner
                 kinds.Add(ObservationInfoKind.ForegroundWindow);
                 return true;
 
-            // 启动、"sun-loop"（每分钟的定时兜底）、解锁、改时间、日出日落、代理通知之外的情况
-            // 都按全量采，保证最迟一分钟内各项一定对齐。
+            // 恢复及需求变化仍受当前场景和用途约束，不用周期刷新代替系统事件。
             default:
                 return false;
         }
@@ -128,34 +146,38 @@ internal sealed class AutomationObservationRequestPlanner
 
     private ObservationUsageScene ResolveScene(string reason)
     {
-        var foregroundProcessName = _getForegroundProcessName();
-        var foregroundWindowTitle = _getForegroundWindowTitle();
-        var isFullscreen = _isForegroundFullscreen();
+        var current = _scenePolicy.Current;
+        if (current.Suspended) return ObservationUsageScene.Suspended;
+        if (current.Locked) return ObservationUsageScene.Locked;
 
-        if (string.Equals(reason, "startup", StringComparison.OrdinalIgnoreCase))
+        if (reason.Split('+').Contains("startup", StringComparer.OrdinalIgnoreCase))
         {
             return ObservationUsageScene.Startup;
         }
 
-        if (reason.Contains("session-", StringComparison.OrdinalIgnoreCase))
+        if (reason.Contains("session-", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("system-power-resume", StringComparison.OrdinalIgnoreCase))
         {
             return ObservationUsageScene.Unlock;
         }
 
-        if (PowerManager.RemainingChargePercent is int batteryPercent && batteryPercent <= 20)
+        if (current.LowBattery)
         {
             return ObservationUsageScene.LowBattery;
         }
 
-        if (isFullscreen && _isLikelyGame(foregroundProcessName, foregroundWindowTitle))
+        if (current.Game)
         {
             return ObservationUsageScene.Game;
         }
 
-        if (isFullscreen)
+        if (current.Fullscreen)
         {
             return ObservationUsageScene.VideoPlayback;
         }
+        if (current.Idle) return ObservationUsageScene.Idle;
+        if (current.OnBattery) return ObservationUsageScene.OnBattery;
+        if (current.AppBackground) return ObservationUsageScene.AppBackground;
 
         if (reason.Contains("foreground", StringComparison.OrdinalIgnoreCase) ||
             reason.Contains("audio", StringComparison.OrdinalIgnoreCase) ||

@@ -17,8 +17,14 @@ public sealed class ThemeManager
             return Task.CompletedTask;
         }
 
+        if (IsRegistryThemeApplied(theme))
+        {
+            return Task.CompletedTask;
+        }
+
         ApplyRegistry(theme);
-        return BroadcastThemeChangeAsync();
+        BroadcastThemeChangeOnce();
+        return Task.CompletedTask;
     }
 
     public ElementTheme GetCurrentTheme()
@@ -55,13 +61,20 @@ public sealed class ThemeManager
         key.SetValue(SystemUsesLightThemeValueName, value, RegistryValueKind.DWord);
     }
 
-    private static async Task BroadcastThemeChangeAsync()
+    private static bool IsRegistryThemeApplied(ElementTheme theme)
     {
-        BroadcastThemeChangeOnce();
-        await Task.Delay(155);
-        BroadcastThemeChangeOnce();
-        await Task.Delay(300);
-        BroadcastThemeChangeOnce();
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(PersonalizeRegistryPath, writable: false);
+            var expectedValue = theme == ElementTheme.Dark ? 0 : 1;
+            var appsValue = ReadThemeValue(key, AppsUseLightThemeValueName);
+            var systemValue = ReadThemeValue(key, SystemUsesLightThemeValueName);
+            return appsValue == expectedValue && systemValue == expectedValue;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static void BroadcastThemeChangeOnce()

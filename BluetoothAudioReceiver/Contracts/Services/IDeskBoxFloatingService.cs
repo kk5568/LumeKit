@@ -18,6 +18,24 @@ public interface IDeskBoxFloatingService
     /// </summary>
     void ShowContent(DeskBoxFloatingRequest request, Microsoft.UI.Xaml.FrameworkElement content);
 
+    /// <summary>显示第一版灵动岛空界面，不影响普通通知浮层。</summary>
+    void ShowIslandPreview(Microsoft.UI.Xaml.FrameworkElement content);
+
+    /// <summary>显示一条会自动退场的超级岛状态，不影响普通通知浮层。</summary>
+    void ShowIslandStatus(Microsoft.UI.Xaml.FrameworkElement content, int durationMilliseconds);
+
+    /// <summary>只关闭灵动岛空界面，不影响普通通知浮层。</summary>
+    void DismissIslandPreview();
+
+    void RefreshIslandAppearance();
+
+    void CloseForExit();
+
+    void ToggleIslandPreview(Microsoft.UI.Xaml.FrameworkElement content);
+
+    /// <summary>显示 2 到 3 状态变换的超级岛交互原型。</summary>
+    void ToggleIslandPrototype();
+
     /// <summary>
     /// 关闭当前显示的浮层。
     /// </summary>

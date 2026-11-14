@@ -8,6 +8,7 @@
 
 using BluetoothAudioReceiver.DeskBoxFloating.Helpers;
 using BluetoothAudioReceiver.DeskBoxFloating.Models;
+using BluetoothAudioReceiver.DeskBoxFloating.Profiles;
 using BluetoothAudioReceiver.DeskBoxFloating.Services;
 using BluetoothAudioReceiver.Helpers.Application;
 using Microsoft.UI;
@@ -58,7 +59,7 @@ public sealed partial class DeskBoxFloatingWindow
 
         bool isDark = RootContainer.ActualTheme == ElementTheme.Dark;
         double surfaceOpacity = Math.Clamp(SettingsService.DefaultWidgetOpacity, 0.0, 1.0);
-        string requestedMaterialType = Models.AppSettings.Current.TrayMaterialType;
+        string requestedMaterialType = _activeMaterialType;
         string materialType = WindowsCompatibilityService.ResolveWidgetMaterialType(
             requestedMaterialType);
         var tintColor = materialType == SettingsService.WidgetMaterialTypeSolid
@@ -531,7 +532,8 @@ public sealed partial class DeskBoxFloatingWindow
         bool isDark = RootContainer.ActualTheme == ElementTheme.Dark;
         double surfaceOpacity = Math.Clamp(SettingsService.DefaultWidgetOpacity, 0.0, 1.0);
         var accentColor = ResolveAccentColor();
-        string materialType = SettingsService.DefaultWidgetMaterialType;
+        string materialType = WindowsCompatibilityService.ResolveWidgetMaterialType(
+            _activeMaterialType);
 
         // Simplified layering: only apply surface color overlay for Solid mode.
         if (materialType is SettingsService.WidgetMaterialTypeSolid && !IsSolidColorBackdropActive)
@@ -547,8 +549,18 @@ public sealed partial class DeskBoxFloatingWindow
         var (borderThickness, borderColor, dividerColor) = GetWidgetBorderVisuals(isDark, accentColor);
 
         BackgroundPlate.BorderThickness = new Thickness(borderThickness);
-        BackgroundPlate.BorderBrush = GetOrUpdateSolidColorBrush(BackgroundPlate.BorderBrush, borderColor);
+        BackgroundPlate.BorderBrush = GetOrUpdateSolidColorBrush(
+            BackgroundPlate.BorderBrush,
+            borderColor);
         BackgroundPlate.CornerRadius = new CornerRadius(GetCurrentSurfaceCornerRadius());
+    }
+
+    public void RefreshIslandAppearance()
+    {
+        if (_islandPreviewActive)
+        {
+            ApplySurfaceStyle();
+        }
     }
 
     private static Windows.UI.Color BuildFrostedSurfaceColor(

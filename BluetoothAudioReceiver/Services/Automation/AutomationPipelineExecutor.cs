@@ -13,17 +13,20 @@ internal sealed class AutomationPipelineExecutor
     private readonly INotificationService _notificationService;
     private readonly IAutomationActionRegistry _actionRegistry;
     private readonly IAppSettingsService _settingsService;
+    private readonly RuntimeHealthService _runtimeHealthService;
 
     public AutomationPipelineExecutor(
         IAutomationSystemContextHub systemContextHub,
         INotificationService notificationService,
         IAutomationActionRegistry actionRegistry,
-        IAppSettingsService settingsService)
+        IAppSettingsService settingsService,
+        RuntimeHealthService runtimeHealthService)
     {
         _systemContextHub = systemContextHub;
         _notificationService = notificationService;
         _actionRegistry = actionRegistry;
         _settingsService = settingsService;
+        _runtimeHealthService = runtimeHealthService;
     }
 
     public async Task<AutomationPipelineExecutionResult> ExecuteAsync(
@@ -47,6 +50,14 @@ internal sealed class AutomationPipelineExecutor
         for (var index = 0; index < pipeline.Steps.Count; index++)
         {
             var step = pipeline.Steps[index];
+            if (string.Equals(pipeline.Trigger.TriggerType, AutomationTriggerCatalog.DynamicPerformanceChanged, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(step.DynamicPerformanceStage) &&
+                (!triggerEvent.Payload.TryGetValue("stage", out var actualStage) ||
+                 !string.Equals(step.DynamicPerformanceStage, actualStage, StringComparison.OrdinalIgnoreCase)))
+            {
+                succeeded++;
+                continue;
+            }
             if (string.Equals(step.ActionType, AutomationSupportCatalog.ActionDelaySeconds, StringComparison.OrdinalIgnoreCase))
             {
                 var seconds = AutomationActionParameterHelper.ReadDelaySeconds(step.ParametersJson, 0);
@@ -162,6 +173,16 @@ internal sealed class AutomationPipelineExecutor
             stopwatch.ElapsedMilliseconds,
             executionContext.CorrelationId);
         NotifyPipelineResult(pipeline, failed, finalResult, executionContext);
+        if (failed > 0)
+        {
+            _runtimeHealthService.ReportError(
+                RuntimeModule.ActionExecution,
+                $"自动化“{pipeline.Name}”有 {failed} 个动作执行失败");
+        }
+        else
+        {
+            _runtimeHealthService.ReportNormal(RuntimeModule.ActionExecution);
+        }
         return new AutomationPipelineExecutionResult(succeededResourceScope, finalResult, succeeded, failed);
     }
 

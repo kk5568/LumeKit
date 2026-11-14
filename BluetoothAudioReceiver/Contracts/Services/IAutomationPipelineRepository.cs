@@ -11,4 +11,6 @@ public interface IAutomationPipelineRepository
     event EventHandler? PipelinesChanged;
 
     Task ReplaceAllAsync(IEnumerable<AutomationPipeline> pipelines);
+    Task EnsureSystemPerformanceRulesAsync();
+    bool IsSystemRule(Guid pipelineId);
 }

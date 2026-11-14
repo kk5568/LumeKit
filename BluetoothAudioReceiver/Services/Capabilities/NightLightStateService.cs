@@ -10,9 +10,6 @@ public sealed class NightLightStateService
     private const string StateRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current\default$windows.data.bluelightreduction.bluelightreductionstate\windows.data.bluelightreduction.bluelightreductionstate";
     private const string SettingsRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current\default$windows.data.bluelightreduction.settings\windows.data.bluelightreduction.settings";
 
-    private byte[]? _savedStateData;
-    private bool _isDisabledByUs;
-
     public bool IsNightLightActive()
     {
         try
@@ -36,71 +33,6 @@ public sealed class NightLightStateService
         }
 
         return false;
-    }
-
-    public bool IsDisabledByUs => _isDisabledByUs;
-
-    public void DisableNightLight()
-    {
-        try
-        {
-            if (_isDisabledByUs)
-            {
-                return;
-            }
-
-            // 保存当前状态
-            if (TryGetStateBlob(out var stateBlob))
-            {
-                _savedStateData = stateBlob;
-            }
-
-            // 禁用夜灯：写入一个最小化的状态 blob，表示夜灯关闭
-            var disableData = new byte[] { 0x43, 0x42, 0x01, 0x00, 0x00 };
-            using var key = Registry.CurrentUser.OpenSubKey(StateRegistryPath, true);
-            if (key is not null)
-            {
-                key.SetValue("Data", disableData, RegistryValueKind.Binary);
-                _isDisabledByUs = true;
-                _log.Information("Night Light disabled by LumeKit");
-            }
-            else
-            {
-                _log.Warning("Failed to open Night Light registry key for writing");
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.Warning(ex, "Failed to disable Night Light");
-        }
-    }
-
-    public void RestoreNightLight()
-    {
-        try
-        {
-            if (!_isDisabledByUs)
-            {
-                return;
-            }
-
-            if (_savedStateData is not null)
-            {
-                using var key = Registry.CurrentUser.OpenSubKey(StateRegistryPath, true);
-                if (key is not null)
-                {
-                    key.SetValue("Data", _savedStateData, RegistryValueKind.Binary);
-                    _log.Information("Night Light restored by LumeKit");
-                }
-            }
-
-            _savedStateData = null;
-            _isDisabledByUs = false;
-        }
-        catch (Exception ex)
-        {
-            _log.Warning(ex, "Failed to restore Night Light");
-        }
     }
 
     private static bool TryGetStateBlob(out byte[] blob)

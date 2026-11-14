@@ -18,7 +18,7 @@ public static class DeskBoxFloatingProfiles
         DeskBoxFloatingPlacement.BottomCenter, true, 2500, false);
 
     public static DeskBoxFloatingLayoutProfile TrayQuickPanel { get; } = new(
-        "Tray.QuickPanel", 376, 200, 280, 160, 900, 1300,
+        "Tray.QuickPanel", 376, 1, 280, 160, 900, 1300,
         new(0), 8, 30, DeskBoxFloatingContentLayout.DeviceList,
         DeskBoxFloatingPlacement.TrayIconLeftAligned, false, 0, true);
 

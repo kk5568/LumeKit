@@ -19,7 +19,10 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     private const string CustomHotkeyActionTitle = "自定义快捷键";
     private const string NotConfiguredText = "未设置";
     private const string NotSelectedProgramText = "未选择程序";
+    /// <summary>条件参数的可选值：表示这条判断不加限制，保存时会忽略该节点。</summary>
+    private const string UnrestrictedOption = "不限";
     private const string PerformanceModeTriggerTitle = "性能模式";
+    private const string DynamicPerformanceTriggerTitle = "动态性能";
     private const string OutputDeviceEnterText = "进入";
     private const string OutputDeviceExitText = "离开";
     private static readonly IReadOnlyList<string> EmptyParameterOptions = [NotConfiguredText];
@@ -31,6 +34,14 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         ["20%", "40%", "60%", "80%"];
     private static readonly IReadOnlyList<string> _outputTriggerStateOptions =
         [OutputDeviceEnterText, OutputDeviceExitText];
+    private static readonly IReadOnlyList<string> _conditionComparisonOptions = ["大于", "小于"];
+    private static readonly IReadOnlyList<string> _batteryLevelConditionOptions =
+        [UnrestrictedOption, .. Enumerable.Range(1, 10).Select(index => $"{index * 10}%")];
+    private static readonly IReadOnlyList<string> _fullscreenConditionOptions = [UnrestrictedOption, "全屏", "非全屏"];
+    private static readonly IReadOnlyList<string> _gameRunningConditionOptions = [UnrestrictedOption, "运行中", "未运行"];
+    private static readonly IReadOnlyList<string> _chargingConditionOptions = [UnrestrictedOption, "充电中", "未充电"];
+    private static readonly IReadOnlyList<string> _themeConditionOptions = [UnrestrictedOption, "深色", "浅色"];
+    private static readonly IReadOnlyList<string> _powerConditionOptions = [UnrestrictedOption, "插电", "电池"];
     private static readonly IReadOnlyList<int> PriorityOptionValues = [0, 10, 50, 100];
     private static readonly IReadOnlyDictionary<string, double> CooldownOptionValues =
         new Dictionary<string, double>(StringComparer.Ordinal)
@@ -60,6 +71,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         "程序启动",
         "程序退出",
         PerformanceModeTriggerTitle,
+        DynamicPerformanceTriggerTitle,
         "电源状态",
         "蓝牙已连接",
         "输出设备变化",
@@ -100,10 +112,46 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     private static readonly IReadOnlyList<AutomationActionCategory> TriggerPickerCategoryList =
     [
         new("应用与窗口", ["程序启动", "程序退出"]),
-        new("性能与电源", [PerformanceModeTriggerTitle, "电源状态"]),
+        new("性能与电源", [PerformanceModeTriggerTitle, DynamicPerformanceTriggerTitle, "电源状态"]),
         new("设备", ["蓝牙已连接", "输出设备变化"]),
         new("时间", ["到达日出", "到达日落"])
     ];
+
+    /// <summary>条件节点的可选条件，顺序即 picker 展示顺序。</summary>
+    private static readonly IReadOnlyList<string> ConditionActionOptions =
+    [
+        "电源状态",
+        "前台程序",
+        "窗口标题",
+        "全屏应用",
+        "游戏运行中",
+        "电池电量",
+        "充电中",
+        "网络名称",
+        "系统主题"
+    ];
+
+    /// <summary>「选择条件」弹窗的分类分组，需覆盖 <see cref="ConditionActionOptions"/> 的全部条件。</summary>
+    private static readonly IReadOnlyList<AutomationActionCategory> ConditionPickerCategoryList =
+    [
+        new("状态与电源", ["电源状态", "电池电量", "充电中"]),
+        new("应用与窗口", ["前台程序", "窗口标题", "全屏应用", "游戏运行中"]),
+        new("系统环境", ["网络名称", "系统主题"])
+    ];
+
+    private static readonly IReadOnlyDictionary<string, string> ConditionTitleToTypeMap =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["电源状态"] = AutomationSupportCatalog.ConditionPowerState,
+            ["前台程序"] = AutomationSupportCatalog.ConditionForegroundProcess,
+            ["窗口标题"] = AutomationSupportCatalog.ConditionWindowTitle,
+            ["全屏应用"] = AutomationSupportCatalog.ConditionFullscreenApp,
+            ["游戏运行中"] = AutomationSupportCatalog.ConditionGameRunning,
+            ["电池电量"] = AutomationSupportCatalog.ConditionBatteryLevel,
+            ["充电中"] = AutomationSupportCatalog.ConditionChargingState,
+            ["网络名称"] = AutomationSupportCatalog.ConditionNetworkName,
+            ["系统主题"] = AutomationSupportCatalog.ConditionThemeMode
+        };
 
     private static readonly IReadOnlyDictionary<string, string> TriggerTitleToTypeMap =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -111,6 +159,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             ["程序启动"] = AutomationSupportCatalog.TriggerForegroundAppChanged,
             ["程序退出"] = AutomationSupportCatalog.TriggerProcessStopped,
             [PerformanceModeTriggerTitle] = AutomationSupportCatalog.TriggerPerformanceModeEntered,
+            [DynamicPerformanceTriggerTitle] = AutomationSupportCatalog.TriggerDynamicPerformanceChanged,
             ["电源状态"] = AutomationSupportCatalog.TriggerPowerStateChanged,
             ["蓝牙已连接"] = AutomationTriggerCatalog.BluetoothConnected,
             ["输出设备变化"] = AutomationTriggerCatalog.OutputDeviceChanged,
@@ -182,6 +231,10 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     public IReadOnlyList<AutomationActionCategory> ActionPickerCategories => ActionPickerCategoryList;
     public IReadOnlyList<AutomationActionCategory> TriggerPickerCategories => TriggerPickerCategoryList;
     public IReadOnlyList<string> TriggerOptions => TriggerActionOptions;
+    public IReadOnlyList<string> DynamicPowerSourceOptions { get; } = ["插电", "电池"];
+    public IReadOnlyList<string> ConditionOptions => ConditionActionOptions;
+    public IReadOnlyList<AutomationActionCategory> ConditionPickerCategories => ConditionPickerCategoryList;
+    public IReadOnlyList<string> ConditionComparisonOptions => _conditionComparisonOptions;
     public IReadOnlyList<string> InputDeviceActionOptions => _inputDeviceActionOptions;
     public IReadOnlyList<string> PerformanceWindowModeOptions => _performanceWindowModeOptions;
     public IReadOnlyList<string> PerformanceGpuComparisonOptions => _performanceGpuComparisonOptions;
@@ -482,10 +535,9 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         RebuildSections();
     }
 
-    public void InsertConditionNodeAfter(AutomationNode? anchorNode)
+    public void InsertConditionNodeAfter(AutomationNode? anchorNode, string? conditionTitle = null)
     {
-        var conditionTitle = "电源状态";
-        var newNode = CreateTriggerNode(conditionTitle, GetDefaultParameter(conditionTitle));
+        var newNode = CreateConditionNode(ResolveConditionTitle(conditionTitle));
         if (anchorNode is null)
         {
             Nodes.Add(newNode);
@@ -716,6 +768,40 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         return lookupKey is not null && ActionParameterMap.TryGetValue(lookupKey, out var options)
             ? options
             : EmptyParameterOptions;
+    }
+
+    /// <summary>
+    /// 条件节点的参数选项：首位固定是「不限」，表示这条判断不加限制（保存时会被忽略）。
+    /// </summary>
+    public IReadOnlyList<string> GetConditionParameterOptions(string conditionTitle)
+    {
+        var normalizedTitle = AutomationDisplayTextConverter.ToDisplayText(conditionTitle);
+        return normalizedTitle switch
+        {
+            "电源状态" => _powerConditionOptions,
+            "前台程序" => WithUnrestricted(GetAutomationGameEntries(), NotSelectedProgramText),
+            "全屏应用" => _fullscreenConditionOptions,
+            "游戏运行中" => _gameRunningConditionOptions,
+            "电池电量" => _batteryLevelConditionOptions,
+            "充电中" => _chargingConditionOptions,
+            "系统主题" => _themeConditionOptions,
+            "窗口标题" or "网络名称" => EmptyParameterOptions,
+            _ => EmptyParameterOptions
+        };
+    }
+
+    private static IReadOnlyList<string> WithUnrestricted(IReadOnlyList<string> options, string emptyPlaceholder)
+    {
+        var usable = options
+            .Where(option => !string.Equals(option, emptyPlaceholder, StringComparison.Ordinal))
+            .ToArray();
+        return usable.Length == 0 ? [UnrestrictedOption] : [UnrestrictedOption, .. usable];
+    }
+
+    private static string ResolveConditionTitle(string? conditionTitle)
+    {
+        var normalizedTitle = AutomationDisplayTextConverter.ToDisplayText(conditionTitle);
+        return ConditionTitleToTypeMap.ContainsKey(normalizedTitle) ? normalizedTitle : ConditionActionOptions[0];
     }
 
     public void UpdateNodeExecutablePath(AutomationNode node, string executablePath)
@@ -960,6 +1046,15 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             return;
         }
 
+        if (string.Equals(triggerType, AutomationSupportCatalog.TriggerDynamicPerformanceChanged, StringComparison.OrdinalIgnoreCase))
+        {
+            var source = pipeline.Trigger.Parameters.GetValueOrDefault("powerSource", "ac") == "battery" ? "电池" : "插电";
+            var triggerNode = CreateTriggerNode(DynamicPerformanceTriggerTitle, source);
+            triggerNode.SecondaryValue = source;
+            Nodes.Add(triggerNode);
+            return;
+        }
+
         if (string.Equals(triggerType, AutomationTriggerCatalog.BluetoothConnected, StringComparison.OrdinalIgnoreCase))
         {
             var deviceId = pipeline.Trigger.Parameters.GetValueOrDefault("deviceId", string.Empty);
@@ -1031,45 +1126,107 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         Nodes.Add(node);
     }
 
-    private void AddConditionNodesFromPipeline(AutomationPipeline pipeline)
-    {
-        if (pipeline.Conditions.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var condition in pipeline.Conditions)
-        {
-            Nodes.Add(CreateSyntaxNode(condition.OperatorType switch
-            {
-                "And" => "并且",
-                "Or" => "或者",
-                "Else" => "否则",
-                _ => "如果"
-            }));
-
-            if (condition.ConditionType == "power-state")
-            {
-                Nodes.Add(CreateTriggerNode(
-                    "电源状态",
-                    condition.Parameters.TryGetValue("mode", out var mode) && mode == "ac-disconnected" ? "电池" : "插电"));
-            }
-        }
-
-        Nodes.Add(CreateSyntaxNode("执行"));
-    }
-
     private void AddConditionActionNodesFromPipeline(AutomationPipeline pipeline)
     {
         foreach (var condition in pipeline.Conditions)
         {
-            if (condition.ConditionType == "power-state")
+            var node = CreateConditionNodeFrom(condition);
+            if (node is not null)
             {
-                Nodes.Add(CreateTriggerNode(
-                    "电源状态",
-                    condition.Parameters.TryGetValue("mode", out var mode) && mode == "ac-disconnected" ? "电池" : "插电"));
+                Nodes.Add(node);
             }
         }
+    }
+
+    private AutomationNode? CreateConditionNodeFrom(AutomationConditionDefinition condition)
+    {
+        if (string.IsNullOrWhiteSpace(condition.ConditionType)
+            || !AutomationSupportCatalog.IsSupportedCondition(condition.ConditionType))
+        {
+            return null;
+        }
+
+        var title = ConditionActionOptions.FirstOrDefault(option =>
+            ConditionTitleToTypeMap.TryGetValue(option, out var type)
+            && string.Equals(type, condition.ConditionType, StringComparison.OrdinalIgnoreCase));
+        if (title is null)
+        {
+            return null;
+        }
+
+        var node = CreateConditionNode(title);
+        var parameters = condition.Parameters;
+
+        switch (condition.ConditionType)
+        {
+            case AutomationSupportCatalog.ConditionPowerState:
+                node.Subtitle = parameters.TryGetValue("mode", out var mode) && mode == "ac-disconnected" ? "电池" : "插电";
+                break;
+
+            case AutomationSupportCatalog.ConditionForegroundProcess:
+                ApplyForegroundProcessSelection(node, parameters.GetValueOrDefault("process", string.Empty));
+                break;
+
+            case AutomationSupportCatalog.ConditionWindowTitle:
+                node.RawValue = parameters.GetValueOrDefault("value", string.Empty);
+                break;
+
+            case AutomationSupportCatalog.ConditionFullscreenApp:
+                node.Subtitle = parameters.TryGetValue("value", out var windowMode) && windowMode == "windowed" ? "非全屏" : "全屏";
+                break;
+
+            case AutomationSupportCatalog.ConditionGameRunning:
+                node.Subtitle = parameters.TryGetValue("value", out var gameState) && gameState == "not-running" ? "未运行" : "运行中";
+                break;
+
+            case AutomationSupportCatalog.ConditionBatteryLevel:
+                node.SecondaryValue = parameters.TryGetValue("comparison", out var comparison) && comparison == "less-than" ? "小于" : "大于";
+                node.Subtitle = parameters.TryGetValue("percent", out var percent) && !string.IsNullOrWhiteSpace(percent)
+                    ? $"{percent}%"
+                    : UnrestrictedOption;
+                break;
+
+            case AutomationSupportCatalog.ConditionChargingState:
+                node.Subtitle = parameters.TryGetValue("value", out var chargingState) && chargingState == "not-charging" ? "未充电" : "充电中";
+                break;
+
+            case AutomationSupportCatalog.ConditionNetworkName:
+                node.RawValue = parameters.GetValueOrDefault("value", string.Empty);
+                break;
+
+            case AutomationSupportCatalog.ConditionThemeMode:
+                node.Subtitle = parameters.TryGetValue("value", out var themeMode) && themeMode == "light" ? "浅色" : "深色";
+                break;
+        }
+
+        return node;
+    }
+
+    private void ApplyForegroundProcessSelection(AutomationNode node, string processName)
+    {
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            node.Subtitle = UnrestrictedOption;
+            node.RawValue = string.Empty;
+            return;
+        }
+
+        var match = node.ParameterOptions.FirstOrDefault(option =>
+            !string.Equals(option, UnrestrictedOption, StringComparison.Ordinal)
+            && string.Equals(
+                NormalizeProcessName(ResolveAutomationGameEntryValue(option)),
+                processName,
+                StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
+        {
+            node.Subtitle = match;
+            node.RawValue = ResolveAutomationGameEntryValue(match);
+            return;
+        }
+
+        // 程序库里已经没有这条记录了，保留原始进程名，避免静默丢条件。
+        node.Subtitle = processName;
+        node.RawValue = processName;
     }
 
     private IReadOnlyList<AutomationNode> CreateNodesFromStep(AutomationStepDefinition step)
@@ -1094,7 +1251,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             AutomationSupportCatalog.ActionEnableTouchpad => CreateActionNode("触摸板", "开启"),
             AutomationSupportCatalog.ActionSetBrightness => CreateActionNode("调整亮度", NormalizeBrightnessLabel(step.ParametersJson)),
             AutomationSupportCatalog.ActionSetTheme => CreateActionNode("深色模式", ResolveThemeLabel(step.ParametersJson)),
-            AutomationSupportCatalog.ActionSendGHelperHotkey => CreateActionNode(GHelperActionTitle, GHelperShortcutCatalog.NormalizeSelectionText(AutomationActionParameterHelper.ReadValue(step.ParametersJson))),
+            AutomationSupportCatalog.ActionSendGHelperHotkey => CreateDynamicPerformanceNode(step),
             AutomationSupportCatalog.ActionSendWindowsHotkey => CreateActionNode(WindowsHotkeyActionTitle, WindowsShortcutCatalog.NormalizeSelectionText(AutomationActionParameterHelper.ReadValue(step.ParametersJson))),
             AutomationSupportCatalog.ActionSendCustomHotkey => CreateActionNode(CustomHotkeyActionTitle, AutomationActionParameterHelper.ReadValue(step.ParametersJson)),
             AutomationSupportCatalog.ActionShowNotification => CreateActionNode("通知", ResolveNotificationLabel(step.ParametersJson)),
@@ -1103,6 +1260,13 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             AutomationSupportCatalog.ActionSetOutputDevice => CreateOutputNodeFromStep(step.ParametersJson),
             _ => null
         };
+    }
+
+    private AutomationNode CreateDynamicPerformanceNode(AutomationStepDefinition step)
+    {
+        var node = CreateActionNode(GHelperActionTitle, GHelperShortcutCatalog.NormalizeSelectionText(AutomationActionParameterHelper.ReadValue(step.ParametersJson)));
+        node.SecondaryValue = step.DynamicPerformanceStage ?? string.Empty;
+        return node;
     }
 
     private AutomationNode? CreateProcessControlNode(string parameters)
@@ -1257,10 +1421,34 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         return $"{device.Name} ({device.EndpointId})";
     }
 
+    /// <summary>
+    /// 只在「如果」段里找触发节点。条件段里的「电源状态」等标题与触发同名，
+    /// 之前用全局 FirstOrDefault 会把它误判成触发器。
+    /// </summary>
+    private AutomationNode? FindTriggerNode()
+    {
+        var inIfSection = false;
+        foreach (var node in Nodes)
+        {
+            if (node.Kind == AutomationNodeKind.Syntax)
+            {
+                inIfSection = string.Equals(node.Title, SyntaxOptions[0], StringComparison.Ordinal);
+                continue;
+            }
+
+            if (inIfSection && IsTriggerAction(node.Title))
+            {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
     private bool TryBuildPipeline(out AutomationPipeline pipeline)
     {
         pipeline = new AutomationPipeline();
-        var triggerNode = Nodes.FirstOrDefault(node => node.Kind == AutomationNodeKind.Action && IsTriggerAction(node.Title));
+        var triggerNode = FindTriggerNode();
         if (triggerNode is null)
         {
             LastSaveErrorMessage = "请先添加一个触发条件。";
@@ -1491,6 +1679,18 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             };
         }
 
+        if (string.Equals(normalizedTitle, DynamicPerformanceTriggerTitle, StringComparison.OrdinalIgnoreCase))
+        {
+            return new AutomationTriggerDefinition
+            {
+                TriggerType = AutomationSupportCatalog.TriggerDynamicPerformanceChanged,
+                Parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["powerSource"] = triggerNode.SecondaryValue == "电池" ? "battery" : "ac"
+                }
+            };
+        }
+
         if (string.Equals(normalizedTitle, "输出设备变化", StringComparison.OrdinalIgnoreCase))
         {
             return new AutomationTriggerDefinition
@@ -1541,28 +1741,191 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         return true;
     }
 
-    private static bool TryBuildCondition(
+    private bool TryBuildCondition(
         AutomationNode node,
         string operatorType,
         out AutomationConditionDefinition condition)
     {
-        if (AutomationDisplayTextConverter.ToDisplayText(node.Title) == "电源状态")
+        condition = new AutomationConditionDefinition();
+        var normalizedTitle = AutomationDisplayTextConverter.ToDisplayText(node.Title);
+        if (!ConditionTitleToTypeMap.TryGetValue(normalizedTitle, out var conditionType))
         {
-            condition = new AutomationConditionDefinition
-            {
-                OperatorType = operatorType,
-                ConditionType = AutomationSupportCatalog.ConditionPowerState,
-                Parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            return false;
+        }
+
+        var parameters = BuildConditionParameters(node, conditionType);
+        if (parameters is null)
+        {
+            // 参数是「不限」：这条判断不产生任何限制，因此不写入模型。
+            return false;
+        }
+
+        condition = new AutomationConditionDefinition
+        {
+            OperatorType = operatorType,
+            ConditionType = conditionType,
+            Parameters = parameters
+        };
+        return true;
+    }
+
+    private Dictionary<string, string>? BuildConditionParameters(AutomationNode node, string conditionType)
+    {
+        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        switch (conditionType)
+        {
+            case AutomationSupportCatalog.ConditionPowerState:
+                if (!TryMapConditionChoice(
+                        node.Subtitle,
+                        ("插电", "ac-connected"),
+                        ("电池", "ac-disconnected"),
+                        out var powerMode))
                 {
-                    ["mode"] = node.Subtitle == "电池" ? "ac-disconnected" : "ac-connected"
+                    return null;
                 }
-            };
+
+                parameters["mode"] = powerMode;
+                return parameters;
+
+            case AutomationSupportCatalog.ConditionForegroundProcess:
+                {
+                    if (IsUnrestricted(node.Subtitle))
+                    {
+                        return null;
+                    }
+
+                    var processName = NormalizeProcessName(ResolveAutomationGameEntryValue(node.Subtitle));
+                    if (string.IsNullOrWhiteSpace(processName))
+                    {
+                        return null;
+                    }
+
+                    parameters["process"] = processName;
+                    return parameters;
+                }
+
+            case AutomationSupportCatalog.ConditionWindowTitle:
+                {
+                    var title = node.RawValue?.Trim();
+                    if (string.IsNullOrWhiteSpace(title))
+                    {
+                        return null;
+                    }
+
+                    parameters["value"] = title;
+                    return parameters;
+                }
+
+            case AutomationSupportCatalog.ConditionFullscreenApp:
+                if (!TryMapConditionChoice(
+                        node.Subtitle,
+                        ("全屏", "fullscreen"),
+                        ("非全屏", "windowed"),
+                        out var windowMode))
+                {
+                    return null;
+                }
+
+                parameters["value"] = windowMode;
+                return parameters;
+
+            case AutomationSupportCatalog.ConditionGameRunning:
+                if (!TryMapConditionChoice(
+                        node.Subtitle,
+                        ("运行中", "running"),
+                        ("未运行", "not-running"),
+                        out var gameState))
+                {
+                    return null;
+                }
+
+                parameters["value"] = gameState;
+                return parameters;
+
+            case AutomationSupportCatalog.ConditionBatteryLevel:
+                {
+                    var digits = ExtractDigits(node.Subtitle, string.Empty);
+                    if (string.IsNullOrWhiteSpace(digits) || !int.TryParse(digits, out var percent))
+                    {
+                        return null;
+                    }
+
+                    parameters["comparison"] = node.SecondaryValue == "小于" ? "less-than" : "greater-than";
+                    parameters["percent"] = percent.ToString();
+                    return parameters;
+                }
+
+            case AutomationSupportCatalog.ConditionChargingState:
+                if (!TryMapConditionChoice(
+                        node.Subtitle,
+                        ("充电中", "charging"),
+                        ("未充电", "not-charging"),
+                        out var chargingState))
+                {
+                    return null;
+                }
+
+                parameters["value"] = chargingState;
+                return parameters;
+
+            case AutomationSupportCatalog.ConditionNetworkName:
+                {
+                    var networkName = node.RawValue?.Trim();
+                    if (string.IsNullOrWhiteSpace(networkName))
+                    {
+                        return null;
+                    }
+
+                    parameters["value"] = networkName;
+                    return parameters;
+                }
+
+            case AutomationSupportCatalog.ConditionThemeMode:
+                if (!TryMapConditionChoice(
+                        node.Subtitle,
+                        ("深色", "dark"),
+                        ("浅色", "light"),
+                        out var themeMode))
+                {
+                    return null;
+                }
+
+                parameters["value"] = themeMode;
+                return parameters;
+
+            default:
+                return null;
+        }
+    }
+
+    private static bool TryMapConditionChoice(
+        string? subtitle,
+        (string Label, string Value) first,
+        (string Label, string Value) second,
+        out string value)
+    {
+        value = string.Empty;
+        if (string.Equals(subtitle, first.Label, StringComparison.Ordinal))
+        {
+            value = first.Value;
             return true;
         }
 
-        condition = new AutomationConditionDefinition();
+        if (string.Equals(subtitle, second.Label, StringComparison.Ordinal))
+        {
+            value = second.Value;
+            return true;
+        }
+
         return false;
     }
+
+    private static bool IsUnrestricted(string? value)
+        => string.IsNullOrWhiteSpace(value)
+           || string.Equals(value.Trim(), UnrestrictedOption, StringComparison.Ordinal)
+           || string.Equals(value.Trim(), NotConfiguredText, StringComparison.Ordinal)
+           || string.Equals(value.Trim(), NotSelectedProgramText, StringComparison.Ordinal);
 
     private AutomationStepDefinition? TryBuildStep(AutomationNode node)
     {
@@ -1596,7 +1959,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
                 })
             },
             "等待" => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionDelaySeconds, ParametersJson = AutomationActionParameterHelper.BuildDelaySeconds(int.Parse(ExtractDigits(node.Subtitle, "3"))) },
-            GHelperActionTitle => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSendGHelperHotkey, ParametersJson = AutomationActionParameterHelper.BuildValue(GHelperShortcutCatalog.NormalizeSelectionText(ResolveNodeValue(node))) },
+            GHelperActionTitle => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSendGHelperHotkey, DynamicPerformanceStage = node.SecondaryValue is "quiet" or "balanced" or "high" ? node.SecondaryValue : null, ParametersJson = AutomationActionParameterHelper.BuildValue(GHelperShortcutCatalog.NormalizeSelectionText(ResolveNodeValue(node))) },
             WindowsHotkeyActionTitle => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSendWindowsHotkey, ParametersJson = AutomationActionParameterHelper.BuildValue(WindowsShortcutCatalog.NormalizeSelectionText(ResolveNodeValue(node))) },
             CustomHotkeyActionTitle => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionSendCustomHotkey, ParametersJson = AutomationActionParameterHelper.BuildValue(ResolveNodeValue(node)) },
             "通知" => new AutomationStepDefinition { ActionType = AutomationSupportCatalog.ActionShowNotification, ParametersJson = AutomationActionParameterHelper.BuildValue(ResolveNodeValue(node)) },
@@ -1667,7 +2030,7 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
     }
 
     private static bool IsTriggerAction(string title)
-        => AutomationDisplayTextConverter.ToDisplayText(title) is "程序启动" or "程序退出" or PerformanceModeTriggerTitle or "电源状态" or "蓝牙已连接" or "输出设备变化" or "到达日出" or "到达日落";
+        => AutomationDisplayTextConverter.ToDisplayText(title) is "程序启动" or "程序退出" or PerformanceModeTriggerTitle or DynamicPerformanceTriggerTitle or "电源状态" or "蓝牙已连接" or "输出设备变化" or "到达日出" or "到达日落";
 
     private static bool IsStartupScenarioPipeline(AutomationPipeline pipeline)
         => AutomationTriggerCatalog.Normalize(pipeline.Trigger.TriggerType) is
@@ -1799,6 +2162,11 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
         {
             node.SecondaryValue = OutputDeviceEnterText;
         }
+        else if (title == DynamicPerformanceTriggerTitle)
+        {
+            node.Subtitle = "插电";
+            node.SecondaryValue = "插电";
+        }
         else if (AutomationDisplayTextConverter.ToDisplayText(title) == PerformanceModeTriggerTitle &&
                  string.IsNullOrWhiteSpace(node.PerformanceWindowMode) &&
                  string.IsNullOrWhiteSpace(node.PerformanceGpuComparison) &&
@@ -1839,6 +2207,30 @@ public sealed partial class AutomationBuilderPageViewModel : ObservableRecipient
             node.RawValue = GetInputDeviceValue(subtitle);
             node.SecondaryValue = "连接";
         }
+        return node;
+    }
+
+    /// <summary>
+    /// 条件节点：参数默认「不限」，即用户可以什么都不选就保存。
+    /// </summary>
+    private AutomationNode CreateConditionNode(string title)
+    {
+        var normalizedTitle = AutomationDisplayTextConverter.ToDisplayText(title);
+        var parameterOptions = GetConditionParameterOptions(normalizedTitle);
+        var node = new AutomationNode(
+            AutomationNodeKind.Action,
+            normalizedTitle,
+            parameterOptions.FirstOrDefault() ?? UnrestrictedOption,
+            ConditionActionOptions,
+            parameterOptions,
+            GetConditionParameterOptions);
+
+        node.RawValue = string.Empty;
+        if (normalizedTitle == "电池电量")
+        {
+            node.SecondaryValue = _conditionComparisonOptions[0];
+        }
+
         return node;
     }
 
@@ -2054,6 +2446,14 @@ public sealed class AutomationNode : ObservableObject
                 "触摸板" => AutomationParameterKind.Combo,
                 "性能模式" => AutomationParameterKind.Combo,
                 "电源状态" => AutomationParameterKind.Combo,
+                "前台程序" => AutomationParameterKind.Combo,
+                "全屏应用" => AutomationParameterKind.Combo,
+                "游戏运行中" => AutomationParameterKind.Combo,
+                "电池电量" => AutomationParameterKind.Combo,
+                "充电中" => AutomationParameterKind.Combo,
+                "系统主题" => AutomationParameterKind.Combo,
+                "窗口标题" => AutomationParameterKind.Text,
+                "网络名称" => AutomationParameterKind.Text,
                 _ => AutomationParameterKind.None
             };
         }

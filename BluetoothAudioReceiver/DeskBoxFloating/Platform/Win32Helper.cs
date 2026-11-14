@@ -38,8 +38,25 @@ public static partial class Win32Helper
         [LibraryImport("dwmapi.dll")]
         public static partial int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int pvAttribute, int cbAttribute);
 
+        [LibraryImport("gdi32.dll", SetLastError = true)]
+        public static partial IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int ellipseWidth, int ellipseHeight);
+
+        [LibraryImport("gdi32.dll", SetLastError = true)]
+        public static partial IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+        [LibraryImport("user32.dll", SetLastError = true)]
+        public static partial int SetWindowRgn(IntPtr hwnd, IntPtr region, [MarshalAs(UnmanagedType.Bool)] bool redraw);
+
+        [LibraryImport("gdi32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static partial bool DeleteObject(IntPtr handle);
+
         public const int DWMWA_TRANSITIONS_FORCEDISABLED = 3;
         public const int DWMWA_CLOAK = 13;
+        public const int DWMWA_NCRENDERING_POLICY = 2;
+        public const int DWMNCRP_DISABLED = 1;
+        public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+        public const int DWMWCP_DONOTROUND = 1;
 
 
 

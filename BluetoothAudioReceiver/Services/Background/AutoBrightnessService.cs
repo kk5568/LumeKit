@@ -16,7 +16,6 @@ namespace BluetoothAudioReceiver.Services
         private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(AutoBrightnessService));
         private const double NightLightMinColorTempKelvin = 4500;
         private const double NightLightMaxColorTempKelvin = 6500;
-        private const double NeutralColorTempKelvin = 6500;
         private const int UnlockAutoBrightnessDelayMs = 500;
         // 采样帧数：多采几帧取中位数，单帧异常不会带偏结果。
         private const int SampleFrameCount = 5;
@@ -30,6 +29,7 @@ namespace BluetoothAudioReceiver.Services
         private readonly NightLightStateService _nightLightStateService;
         private readonly BrightnessSettings _settings;
         private readonly INotificationService _notificationService;
+        private readonly IIslandStatusService _islandStatusService;
         private readonly IAppSettingsService _appSettingsService;
         private readonly IAutomationTriggerBus _triggerBus;
         private readonly object _requestGate = new();
@@ -51,6 +51,7 @@ namespace BluetoothAudioReceiver.Services
             NightLightStateService nightLightStateService,
             BrightnessSettings settings,
             INotificationService notificationService,
+            IIslandStatusService islandStatusService,
             IAppSettingsService appSettingsService,
             IAutomationTriggerBus triggerBus)
         {
@@ -60,6 +61,7 @@ namespace BluetoothAudioReceiver.Services
             _nightLightStateService = nightLightStateService;
             _settings = settings;
             _notificationService = notificationService;
+            _islandStatusService = islandStatusService;
             _appSettingsService = appSettingsService;
             _triggerBus = triggerBus;
             _triggerBus.TriggerPublished += OnTriggerPublished;
@@ -86,39 +88,6 @@ namespace BluetoothAudioReceiver.Services
         public Task StopAsync()
         {
             return Task.CompletedTask;
-        }
-
-        public void UpdateNightLightState()
-        {
-            try
-            {
-                var shouldDisable = _appSettingsService.DisableNightLightEnabled;
-
-                // 如果启用了夜间模式关闭色温调节，检查系统夜灯是否激活
-                if (shouldDisable && _appSettingsService.DisableNightLightAtNightEnabled)
-                {
-                    // 使用系统夜灯状态判断，而不是硬编码时间
-                    if (!_nightLightStateService.IsNightLightActive())
-                    {
-                        shouldDisable = false;
-                    }
-                }
-
-                if (shouldDisable)
-                {
-                    _nightLightStateService.DisableNightLight();
-                    _log.Information("Night Light disabled by LumeKit settings");
-                }
-                else
-                {
-                    _nightLightStateService.RestoreNightLight();
-                    _log.Information("Night Light restored by LumeKit settings");
-                }
-            }
-            catch (Exception ex)
-            {
-                _log.Warning(ex, "Failed to update Night Light state");
-            }
         }
 
         public void OnUserAction()
@@ -352,6 +321,13 @@ namespace BluetoothAudioReceiver.Services
                 }
 
                 var metrics = await _cameraReader.GetSampleMetricsAsync(frameCount: SampleFrameCount);
+                if (_cameraReader.DefaultCameraFailed)
+                {
+                    var status = _cameraReader.UsedFallbackCamera
+                        ? $"已临时使用：{_cameraReader.ActiveCameraName}"
+                        : "没有可用摄像头，已跳过本次调整";
+                    _notificationService.Show("\uE720", "默认摄像头不可用", status);
+                }
                 if (shouldLogTiming)
                 {
                     _log.Information(
@@ -417,6 +393,7 @@ namespace BluetoothAudioReceiver.Services
                     warmthPercent,
                     warmthDiff);
 
+                ShowSuccessIslandStatus(source, targetBrightness, targetColorTemp);
                 ShowSuccessNotification(source, targetBrightness, targetColorTemp);
             }
             catch (Exception ex)
@@ -542,6 +519,22 @@ namespace BluetoothAudioReceiver.Services
             _notificationService.Show("\uE706", "屏幕亮度已调整", brightnessText);
         }
 
+        private void ShowSuccessIslandStatus(string source, double targetBrightness, double targetColorTemp)
+        {
+            if (!IsSupportedSuccessSource(source))
+            {
+                return;
+            }
+
+            var brightnessText = $"{Math.Clamp((int)Math.Round(targetBrightness), 0, 100)}% | {Math.Round(targetColorTemp):0}K";
+            _islandStatusService.ShowShortStatus("\uE706", "屏幕亮度已调整", brightnessText);
+        }
+
+        private static bool IsSupportedSuccessSource(string source)
+            => string.Equals(source, "hotkey", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(source, "screen-unlock", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(source, "foreground-window", StringComparison.OrdinalIgnoreCase);
+
         private static bool ShouldLogTiming(string source)
         {
             return string.Equals(source, "screen-unlock", StringComparison.OrdinalIgnoreCase);
@@ -574,12 +567,6 @@ namespace BluetoothAudioReceiver.Services
             if (minColorTemp > maxColorTemp)
             {
                 (minColorTemp, maxColorTemp) = (maxColorTemp, minColorTemp);
-            }
-
-            // 如果启用了“夜间模式关闭色温调节”且夜灯激活，返回中性色温，不调节。
-            if (_appSettingsService.DisableNightLightAtNightEnabled && _nightLightStateService.IsNightLightActive())
-            {
-                return (NeutralColorTempKelvin, NeutralColorTempKelvin);
             }
 
             if (!_nightLightStateService.IsNightLightActive())

@@ -21,4 +21,9 @@ public sealed partial class OtherSettingsHubPage : Page
         Frame.Navigate(typeof(NotificationPage));
     }
 
+    private void IslandEntry_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(IslandPage));
+    }
+
 }

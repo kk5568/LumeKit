@@ -47,6 +47,74 @@
         <StackPanel Spacing="{StaticResource HomePageSectionSpacing}">
 
             <StackPanel Spacing="{StaticResource HomePageSectionHeaderSpacing}">
+                <TextBlock Text="LumeKit 运行看板"
+                           FontSize="22"
+                           FontWeight="SemiBold" />
+
+                <Border Padding="20"
+                        CornerRadius="8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="20">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.RuntimeModules, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:RuntimeModuleStatusItem">
+                                    <StackPanel Width="150" Spacing="8" Margin="0,4,8,4">
+                                        <TextBlock Text="{x:Bind Name}"
+                                                   FontSize="17"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="{x:Bind StatusGlyph}"
+                                                      FontSize="17" />
+                                            <TextBlock Text="{x:Bind StatusText}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ItemsWrapGrid Orientation="Horizontal"
+                                                   MaximumRowsOrColumns="6" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <Rectangle Height="1"
+                                   Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                        <StackPanel Visibility="{x:Bind ViewModel.NoRuntimeIssuesVisibility, Mode=OneWay}"
+                                    Spacing="3">
+                            <TextBlock Text="运行信息：无" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.RuntimeIssues, Mode=OneWay}"
+                                      Visibility="{x:Bind ViewModel.RuntimeIssuesVisibility, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:RuntimeHealthIssueItem">
+                                    <Grid ColumnSpacing="12" Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{x:Bind ModuleName}"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{x:Bind Message}"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{x:Bind OccurredAtText}"
+                                                   Opacity="0.65" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="{StaticResource HomePageSectionHeaderSpacing}">
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

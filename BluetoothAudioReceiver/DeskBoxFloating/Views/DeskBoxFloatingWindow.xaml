@@ -135,6 +135,7 @@
             <Grid x:Name="FeedbackLayer"
                   Margin="12"
                   IsHitTestVisible="False" />
+
         </Grid>
     </Grid>
 </windowex:WindowEx>

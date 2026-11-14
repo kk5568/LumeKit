@@ -1,6 +1,7 @@
 using BluetoothAudioReceiver.Automation;
 using BluetoothAudioReceiver.Automation.Models;
 using BluetoothAudioReceiver.Contracts.Services;
+using BluetoothAudioReceiver.Models;
 
 namespace BluetoothAudioReceiver.Services;
 
@@ -11,13 +12,19 @@ namespace BluetoothAudioReceiver.Services;
 /// </summary>
 internal sealed class ObservationDemandCatalog : IDisposable
 {
+    private static readonly AutomationTriggerRegistry TriggerRegistry = new();
     private static readonly IReadOnlyCollection<ObservationInfoKind> CoreInfoKinds =
     [
-        ObservationInfoKind.AudioRoute,
         ObservationInfoKind.ForegroundWindow,
-        ObservationInfoKind.BluetoothState,
-        ObservationInfoKind.BluetoothRadioState,
         ObservationInfoKind.PowerState
+    ];
+
+    // 设备展示快照不是后台效率/亮度的输入；启用的设备规则会另外登记 Required 需求。
+    private static readonly IReadOnlyCollection<ObservationInfoKind> DevicePresentationKinds =
+    [
+        ObservationInfoKind.AudioRoute,
+        ObservationInfoKind.BluetoothState,
+        ObservationInfoKind.BluetoothRadioState
     ];
 
     /// <summary>
@@ -43,22 +50,28 @@ internal sealed class ObservationDemandCatalog : IDisposable
     private static readonly IReadOnlyCollection<ObservationSourceKind> EmptySources = [];
 
     private readonly IAppSettingsService _appSettingsService;
+    private readonly BrightnessSettings _brightnessSettings;
     private readonly IAutomationPipelineRepository _pipelineRepository;
     private readonly List<IDisposable> _registrations = [];
 
     public ObservationDemandCatalog(
         ObservationDemandRegistry registry,
         IAppSettingsService appSettingsService,
+        BrightnessSettings brightnessSettings,
         IAutomationPipelineRepository pipelineRepository)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(appSettingsService);
+        ArgumentNullException.ThrowIfNull(brightnessSettings);
         ArgumentNullException.ThrowIfNull(pipelineRepository);
 
         _appSettingsService = appSettingsService;
+        _brightnessSettings = brightnessSettings;
         _pipelineRepository = pipelineRepository;
 
         _registrations.Add(registry.Register("core", () => CoreInfoKinds));
+        _registrations.Add(registry.Register("device-presentation", () => DevicePresentationKinds,
+            ObservationDemandPurpose.WindowPresentation));
         _registrations.Add(registry.Register("auto-brightness", GetAutoBrightnessDemand));
         _registrations.Add(registry.Register("auto-day-night", GetAutoDayNightDemand));
         _registrations.Add(registry.Register("proxy-notification", GetProxyNotificationDemand));
@@ -86,7 +99,7 @@ internal sealed class ObservationDemandCatalog : IDisposable
                 continue;
             }
 
-            var triggerType = pipeline.Trigger?.TriggerType;
+            var triggerType = TriggerRegistry.Normalize(pipeline.Trigger?.TriggerType);
             if (string.IsNullOrWhiteSpace(triggerType))
             {
                 continue;
@@ -111,10 +124,8 @@ internal sealed class ObservationDemandCatalog : IDisposable
     private IReadOnlyCollection<ObservationInfoKind> GetAutoBrightnessDemand()
     {
         var settings = _appSettingsService;
-        return settings.AutoBrightnessNotificationEnabled ||
-               settings.AutoBrightnessOnUnlockEnabled ||
-               settings.AutoBrightnessOnUnlockNotificationEnabled ||
-               settings.AutoBrightnessOnForegroundEnabled
+        return _brightnessSettings.AutoEnabled &&
+               (settings.AutoBrightnessOnUnlockEnabled || settings.AutoBrightnessOnForegroundEnabled)
             ? [ObservationInfoKind.Brightness, ObservationInfoKind.ForegroundWindow]
             : Empty;
     }
@@ -123,10 +134,7 @@ internal sealed class ObservationDemandCatalog : IDisposable
     private IReadOnlyCollection<ObservationInfoKind> GetAutoDayNightDemand()
     {
         var settings = _appSettingsService;
-        return settings.AutoDayNightEnabled ||
-               settings.AutoDayNightNotificationEnabled ||
-               settings.DisableNightLightEnabled ||
-               settings.DisableNightLightAtNightEnabled
+        return settings.AutoDayNightEnabled
             ? [ObservationInfoKind.ThemeMode, ObservationInfoKind.PowerState]
             : Empty;
     }
@@ -157,20 +165,77 @@ internal sealed class ObservationDemandCatalog : IDisposable
 
             foreach (var condition in pipeline.Conditions)
             {
-                if (string.Equals(condition.ConditionType, AutomationSupportCatalog.ConditionPowerState, StringComparison.OrdinalIgnoreCase))
-                {
-                    kinds.Add(ObservationInfoKind.PowerState);
-                }
+                AddConditionDemand(kinds, condition.ConditionType);
             }
         }
 
         return kinds;
     }
 
+    // 太阳定时刷新只服务太阳触发器及其条件，不再刷新所有模块的并集。
+    internal static IReadOnlyCollection<ObservationInfoKind> GetSunScheduleDemand(IAutomationPipelineRepository repository)
+    {
+        var kinds = new HashSet<ObservationInfoKind>();
+        foreach (var pipeline in repository.Pipelines.Where(p => p.IsEnabled))
+        {
+            var trigger = TriggerRegistry.Normalize(pipeline.Trigger?.TriggerType);
+            if (!string.Equals(trigger, AutomationTriggerCatalog.SunriseReached, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(trigger, AutomationTriggerCatalog.SunsetReached, StringComparison.OrdinalIgnoreCase)) continue;
+            kinds.Add(ObservationInfoKind.ThemeMode);
+            if (pipeline.Conditions is null) continue;
+            foreach (var condition in pipeline.Conditions) AddConditionDemand(kinds, condition.ConditionType);
+        }
+        return kinds;
+    }
+
+    private static void AddConditionDemand(HashSet<ObservationInfoKind> kinds, string? conditionType)
+    {
+        if (string.IsNullOrWhiteSpace(conditionType))
+        {
+            return;
+        }
+
+        if (string.Equals(conditionType, AutomationSupportCatalog.ConditionForegroundProcess, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(conditionType, AutomationSupportCatalog.ConditionWindowTitle, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(conditionType, AutomationSupportCatalog.ConditionFullscreenApp, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(conditionType, AutomationSupportCatalog.ConditionGameRunning, StringComparison.OrdinalIgnoreCase))
+        {
+            kinds.Add(ObservationInfoKind.ForegroundWindow);
+            return;
+        }
+
+        if (string.Equals(conditionType, AutomationSupportCatalog.ConditionPowerState, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(conditionType, AutomationSupportCatalog.ConditionBatteryLevel, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(conditionType, AutomationSupportCatalog.ConditionChargingState, StringComparison.OrdinalIgnoreCase))
+        {
+            kinds.Add(ObservationInfoKind.PowerState);
+            return;
+        }
+
+        if (string.Equals(conditionType, AutomationSupportCatalog.ConditionNetworkName, StringComparison.OrdinalIgnoreCase))
+        {
+            kinds.Add(ObservationInfoKind.NetworkState);
+            return;
+        }
+
+        if (string.Equals(conditionType, AutomationSupportCatalog.ConditionThemeMode, StringComparison.OrdinalIgnoreCase))
+        {
+            kinds.Add(ObservationInfoKind.ThemeMode);
+        }
+    }
+
     private static void AddTriggerDemand(HashSet<ObservationInfoKind> kinds, string? triggerType)
     {
+        triggerType = TriggerRegistry.Normalize(triggerType);
         if (string.IsNullOrWhiteSpace(triggerType))
         {
+            return;
+        }
+
+        if (string.Equals(triggerType, AutomationTriggerCatalog.SunriseReached, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(triggerType, AutomationTriggerCatalog.SunsetReached, StringComparison.OrdinalIgnoreCase))
+        {
+            kinds.Add(ObservationInfoKind.ThemeMode);
             return;
         }
 

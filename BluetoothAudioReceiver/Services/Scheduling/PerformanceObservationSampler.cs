@@ -11,24 +11,28 @@ namespace BluetoothAudioReceiver.Services;
 internal sealed class PerformanceObservationSampler : IDisposable
 {
     private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(PerformanceObservationSampler));
-    private static readonly TimeSpan IdlePollInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan CandidatePollInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan ActivePollInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan FailureRetryInterval = TimeSpan.FromSeconds(2);
 
     private readonly object _syncRoot = new();
     private readonly List<Subscription> _subscriptions = new();
+    private readonly SemaphoreSlim _immediateSampleSignal = new(0, 1);
     private CancellationTokenSource? _cts;
+    private CancellationTokenSource _pauseCts = new();
     private Task? _loopTask;
     private Func<PerformanceSample>? _capture;
     private volatile bool _paused;
     private bool _started;
+    private bool _disposed;
 
     /// <summary>
     /// 登记一个订阅者。回调返回 true 表示"现在处于活跃状态"，节拍会放慢到 3 秒；
     /// 返回 false 时用 500 毫秒。
     /// </summary>
-    public IDisposable Subscribe(string owner, Func<Func<PerformanceSample>, bool> onTick)
+    public IDisposable Subscribe(
+        string owner,
+        Func<Func<PerformanceSample>, CancellationToken, Task<bool>> onTick)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ArgumentNullException.ThrowIfNull(onTick);
@@ -36,11 +40,27 @@ internal sealed class PerformanceObservationSampler : IDisposable
         var subscription = new Subscription(this, owner, onTick);
         lock (_syncRoot)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             _subscriptions.Add(subscription);
         }
 
         _log.Information("Performance sampler subscriber added. Owner={Owner}", owner);
+        RequestImmediateSample();
         return subscription;
+    }
+
+    public void RequestImmediateSample()
+    {
+        if (_disposed) return;
+        try
+        {
+            _immediateSampleSignal.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // One pending wake-up is enough to coalesce rapid power notifications.
+        }
+        catch (ObjectDisposedException) { }
     }
 
     public void Start(Func<PerformanceSample> capture)
@@ -49,6 +69,7 @@ internal sealed class PerformanceObservationSampler : IDisposable
 
         lock (_syncRoot)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (_started)
             {
                 _capture = capture;
@@ -58,14 +79,28 @@ internal sealed class PerformanceObservationSampler : IDisposable
             _started = true;
             _capture = capture;
             _cts = new CancellationTokenSource();
+            var token = _cts.Token;
+            _loopTask = Task.Run(() => RunLoopAsync(token));
         }
-
-        _loopTask = Task.Run(() => RunLoopAsync(_cts!.Token));
         _log.Information("Performance sampler started");
     }
 
-    /// <summary>锁屏时暂停采样，和原来的行为一致。</summary>
-    public void SetPaused(bool paused) => _paused = paused;
+    /// <summary>锁屏/睡眠暂停全部订阅，恢复时由信号立即唤醒。</summary>
+    public void SetPaused(bool paused)
+    {
+        lock (_syncRoot)
+        {
+            if (_disposed) return;
+            if (_paused == paused) return;
+            _paused = paused;
+            var previous = _pauseCts;
+            _pauseCts = new CancellationTokenSource();
+            previous.Cancel();
+            previous.Dispose();
+        }
+        _log.Information("Performance sampler pause changed. Paused={Paused}", paused);
+        RequestImmediateSample();
+    }
 
     private async Task RunLoopAsync(CancellationToken token)
     {
@@ -84,7 +119,7 @@ internal sealed class PerformanceObservationSampler : IDisposable
             {
                 try
                 {
-                    await Task.Delay(IdlePollInterval, token);
+                    await _immediateSampleSignal.WaitAsync(token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -96,15 +131,27 @@ internal sealed class PerformanceObservationSampler : IDisposable
 
             var isActive = false;
             var failed = false;
+            using var tickCts = CreateTickCancellation(token);
+            PerformanceSample? sharedSample = null;
+            PerformanceSample CaptureSharedSample()
+            {
+                // 回调排队后可能已经锁屏，真正读取计数器前再检查一次。
+                tickCts.Token.ThrowIfCancellationRequested();
+                if (_paused) throw new OperationCanceledException();
+                return sharedSample ??= capture();
+            }
+
             foreach (var subscription in snapshot)
             {
+                if (_paused || tickCts.IsCancellationRequested) break;
                 try
                 {
-                    if (subscription.OnTick(capture))
+                    if (await subscription.OnTick(CaptureSharedSample, tickCts.Token))
                     {
                         isActive = true;
                     }
                 }
+                catch (OperationCanceledException) when (_paused || tickCts.IsCancellationRequested) { break; }
                 catch (Exception ex)
                 {
                     failed = true;
@@ -118,12 +165,25 @@ internal sealed class PerformanceObservationSampler : IDisposable
 
             try
             {
-                await Task.Delay(delay, token);
+                await WaitForNextTickAsync(delay, token);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
+        }
+    }
+
+    private async Task WaitForNextTickAsync(TimeSpan delay, CancellationToken token)
+    {
+        await _immediateSampleSignal.WaitAsync(delay, token);
+    }
+
+    private CancellationTokenSource CreateTickCancellation(CancellationToken token)
+    {
+        lock (_syncRoot)
+        {
+            return CancellationTokenSource.CreateLinkedTokenSource(token, _pauseCts.Token);
         }
     }
 
@@ -138,6 +198,7 @@ internal sealed class PerformanceObservationSampler : IDisposable
         }
 
         _log.Information("Performance sampler subscriber removed. Owner={Owner}", subscription.Owner);
+        RequestImmediateSample();
     }
 
     public void Dispose()
@@ -146,6 +207,8 @@ internal sealed class PerformanceObservationSampler : IDisposable
         Task? loopTask;
         lock (_syncRoot)
         {
+            if (_disposed) return;
+            _disposed = true;
             cts = _cts;
             loopTask = _loopTask;
             _cts = null;
@@ -165,6 +228,12 @@ internal sealed class PerformanceObservationSampler : IDisposable
         }
 
         cts?.Dispose();
+        _ = (loopTask ?? Task.CompletedTask).ContinueWith(_ =>
+        {
+            _pauseCts.Dispose();
+            _immediateSampleSignal.Dispose();
+        },
+            CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private sealed class Subscription : IDisposable
@@ -175,7 +244,7 @@ internal sealed class PerformanceObservationSampler : IDisposable
         public Subscription(
             PerformanceObservationSampler sampler,
             string owner,
-            Func<Func<PerformanceSample>, bool> onTick)
+            Func<Func<PerformanceSample>, CancellationToken, Task<bool>> onTick)
         {
             _sampler = sampler;
             Owner = owner;
@@ -184,7 +253,7 @@ internal sealed class PerformanceObservationSampler : IDisposable
 
         public string Owner { get; }
 
-        public Func<Func<PerformanceSample>, bool> OnTick { get; }
+        public Func<Func<PerformanceSample>, CancellationToken, Task<bool>> OnTick { get; }
 
         public void Dispose()
         {

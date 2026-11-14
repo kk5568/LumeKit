@@ -20,6 +20,16 @@ public class LocalSettingsKeys
     public readonly string DisableNotificationInFullscreenKey = "DisableNotificationInFullscreen";
     public readonly string DisableNotificationInRecordingOrLiveKey = "DisableNotificationInRecordingOrLive";
     public readonly string HideNotificationWhenTrayPopupVisibleKey = "HideNotificationWhenTrayPopupVisible";
+    public readonly string IslandEnabledKey = "IslandEnabled";
+    public readonly string IslandMaterialTypeKey = "IslandMaterialType";
+    public readonly string IslandLayoutPresetKey = "IslandLayoutPreset";
+    public readonly string IslandWidthKey = "IslandWidth";
+    public readonly string IslandHeightKey = "IslandHeight";
+    public readonly string IslandTopMarginKey = "IslandTopMargin";
+    public readonly string IslandHorizontalPositionKey = "IslandHorizontalPosition";
+    public readonly string IslandHorizontalOffsetKey = "IslandHorizontalOffset";
+    public readonly string IslandAutoBrightnessStatusEnabledKey = "IslandAutoBrightnessStatusEnabled";
+    public readonly string IslandAutoBrightnessDetailsEnabledKey = "IslandAutoBrightnessDetailsEnabled";
     public readonly string DeskBoxFloatingTestDurationMillisecondsKey = "DeskBoxFloatingTestDurationMilliseconds";
     public readonly string DeskBoxFloatingAnimationTierKey = "DeskBoxFloatingAnimationTier";
     public readonly string DeskBoxFloatingUnifiedLayoutKey = "DeskBoxFloatingUnifiedLayout";
@@ -27,6 +37,8 @@ public class LocalSettingsKeys
     public readonly string PreferredInputDeviceIdKey = "PreferredInputDeviceId";
 
     public readonly string PreferredOutputDeviceIdKey = "PreferredOutputDeviceId";
+
+    public readonly string PreferredCameraDeviceIdKey = "PreferredCameraDeviceId";
 
     public readonly string BluetoothConnectedDeviceIdsKey = "BluetoothConnectedDeviceIds";
 
@@ -47,14 +59,12 @@ public class LocalSettingsKeys
     public readonly string MaxBrightnessKey = "MaxBrightness";
     public readonly string MinColorTempKey = "MinColorTemp";
     public readonly string MaxColorTempKey = "MaxColorTemp";
-    public readonly string DisableNightLightEnabledKey = "DisableNightLightEnabled";
-    public readonly string DisableNightLightAtNightEnabledKey = "DisableNightLightAtNightEnabled";
-
     public readonly string AutoDayNightEnabledKey = "AutoDayNightEnabled";
     public readonly string AutoDayNightCityKey = "AutoDayNightCity";
     public readonly string AutoDayNightUseCityKey = "AutoDayNightUseCity";
     public readonly string AutoDayNightUseSystemLocationKey = "AutoDayNightUseSystemLocation";
     public readonly string AutoDayNightUseCustomNightScheduleKey = "AutoDayNightUseCustomNightSchedule";
+    public readonly string AutoDayNightUseNightLightKey = "AutoDayNightUseNightLight";
     public readonly string AutoDayNightNightStartTimeKey = "AutoDayNightNightStartTime";
     public readonly string AutoDayNightNightEndTimeKey = "AutoDayNightNightEndTime";
 

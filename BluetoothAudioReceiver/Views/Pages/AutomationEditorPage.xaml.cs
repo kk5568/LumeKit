@@ -167,7 +167,11 @@ public sealed partial class AutomationEditorPage : Page
 
         if (sectionTitle == "条件")
         {
-            ViewModel.InsertConditionNodeAfter(section.HeaderNode);
+            var selectedCondition = await ShowConditionPickerAsync();
+            if (!string.IsNullOrWhiteSpace(selectedCondition))
+            {
+                ViewModel.InsertConditionNodeAfter(section.HeaderNode, selectedCondition);
+            }
         }
     }
 
@@ -716,6 +720,15 @@ public sealed partial class AutomationEditorPage : Page
         return await ShowTileDialogAsync("选择触发器", ViewModel.TriggerPickerCategories, options, currentTrigger);
     }
 
+    private async Task<string?> ShowConditionPickerAsync(string? currentCondition = null)
+    {
+        var options = ViewModel.ConditionOptions
+            .Select(item => new PickerOption(item, AutomationDisplayTextConverter.ToDisplayText(item)))
+            .ToList();
+
+        return await ShowTileDialogAsync("选择条件", ViewModel.ConditionPickerCategories, options, currentCondition);
+    }
+
     private async Task<string?> ShowPickerDialogAsync(
         string title,
         string header,
@@ -997,6 +1010,14 @@ public sealed partial class AutomationActionTitleVisibilityConverter : IValueCon
     public object ConvertBack(object value, Type targetType, object parameter, string language) => throw new NotSupportedException();
 }
 
+public sealed partial class AutomationTextVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => value?.ToString() is "quiet" or "balanced" or "high" ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language) => throw new NotSupportedException();
+}
+
 public sealed partial class AutomationActionIconGlyphConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language)
@@ -1014,6 +1035,14 @@ public sealed partial class AutomationActionIconGlyphConverter : IValueConverter
             "GHelper 快捷键" or "Win11 系统快捷键" or "自定义快捷键" => "\uE765",
             "通知" => "\uE7F4",
             "等待" => "\uE916",
+            "前台程序" => "\uE8B7",
+            "窗口标题" => "\uE8A5",
+            "全屏应用" => "\uE740",
+            "游戏运行中" => "\uE7FC",
+            "电池电量" => "\uE850",
+            "充电中" => "\uE83E",
+            "网络名称" => "\uE774",
+            "系统主题" => "\uE793",
             _ => "\uE8F1"
         };
     }

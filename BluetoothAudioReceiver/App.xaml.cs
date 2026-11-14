@@ -22,10 +22,20 @@ namespace BluetoothAudioReceiver;
 public partial class App : Application
 {
     private static readonly ILogger _log = Serilog.Log.ForContext("SourceContext", nameof(App));
-    private static readonly string StartupTraceLogPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "BluetoothAudioReceiver",
-        "startup-trace.log");
+    private static readonly string StartupTraceLogPath = GetStartupTracePath();
+
+    private static string GetStartupTracePath()
+    {
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "portable.flag")))
+        {
+            return Path.Combine(AppContext.BaseDirectory, "data", "Logs", "startup-trace.log");
+        }
+
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "BluetoothAudioReceiver",
+            "startup-trace.log");
+    }
 
     #region Main Window
 
@@ -113,6 +123,7 @@ public partial class App : Application
 
                 // File Storage
                 services.AddSingleton<IFileService, FileService>();
+                services.AddSingleton<RuntimeHealthService>();
 
                 // Theme Management
                 services.AddSingleton<ThemeManager>();
@@ -146,6 +157,7 @@ public partial class App : Application
                 services.AddSingleton<DeskBoxFloating.Services.DeskBoxFloatingHost>();
                 services.AddSingleton<Contracts.Services.IDeskBoxFloatingService>(
                     sp => sp.GetRequiredService<DeskBoxFloating.Services.DeskBoxFloatingHost>());
+                services.AddSingleton<IIslandStatusService, IslandStatusService>();
                 services.AddSingleton<ITouchpadControlService, TouchpadControlService>();
                 services.AddSingleton<ITouchpadProvider, TouchpadProvider>();
 
@@ -173,6 +185,8 @@ public partial class App : Application
                 services.AddSingleton<IAutomationConditionRegistry, AutomationConditionRegistry>();
                 services.AddSingleton<IAutomationPipelineRepository, AutomationPipelineRepository>();
                 services.AddSingleton<AutomationGameModeDecisionService>();
+                services.AddSingleton<IGHelperPerformanceModeController, GHelperPerformanceModeController>();
+                services.AddSingleton<DynamicPerformanceService>();
                 // 性能采样的节拍归调度中心；自动化只在有性能模式规则时向它订阅。
                 services.AddSingleton<PerformanceObservationSampler>();
                 services.AddSingleton<AutomationPerformanceModeWatcher>();
@@ -310,6 +324,8 @@ public partial class App : Application
                 services.AddTransient<BackgroundEfficiencyPage>();
                 services.AddTransient<NotificationPageViewModel>();
                 services.AddTransient<NotificationPage>();
+                services.AddTransient<IslandPageViewModel>();
+                services.AddTransient<IslandPage>();
                 services.AddSingleton<HotkeyNotificationPageViewModel>();
                 services.AddTransient<HotkeyNotificationPage>();
 
@@ -381,58 +397,69 @@ public partial class App : Application
 
         async Task ActivateAsync()
         {
-            TryWriteStartupTrace("App.OnLaunched: ActivateAsync enter");
-            var launchArgs = Environment.GetCommandLineArgs();
-            var startupLaunch = launchArgs.Contains(StartupHelper.NonMsixStartupTag, StringComparer.OrdinalIgnoreCase);
-
-            // AppLifecycle may be unavailable in some unpackaged startup paths.
-            object appActivationArguments = args;
             try
             {
-                appActivationArguments = AppInstance.GetCurrent().GetActivatedEventArgs();
+                TryWriteStartupTrace("App.OnLaunched: ActivateAsync enter");
+                var launchArgs = Environment.GetCommandLineArgs();
+                var startupLaunch = launchArgs.Contains(StartupHelper.NonMsixStartupTag, StringComparer.OrdinalIgnoreCase);
+
+                // AppLifecycle may be unavailable in some unpackaged startup paths.
+                object appActivationArguments = args;
+                try
+                {
+                    appActivationArguments = AppInstance.GetCurrent().GetActivatedEventArgs();
+                }
+                catch (COMException ex) when ((uint)ex.HResult == 0x80040154)
+                {
+                    TryWriteStartupTrace("App.OnLaunched: AppInstance unavailable, use LaunchActivatedEventArgs");
+                    _log.Warning(ex, "AppInstance unavailable in OnLaunched, fallback to launch args.");
+                }
+
+                // Initialize the window
+                MainWindow = new MainWindow();
+                TryWriteStartupTrace("App.OnLaunched: MainWindow created");
+                InitializeSystemThemeMonitoring();
+                TryWriteStartupTrace("App.OnLaunched: system theme monitoring initialized");
+
+                _log.Information($"App launched. Launch args type: {args.GetType().Name}.");
+
+                // Check startup
+                _ = StartupHelper.CheckStartup();
+
+                // TODO: Initialize others things
+
+                await Ioc.Default.GetRequiredService<IActivationService>().ActivateMainWindowAsync(args, showWindow: !startupLaunch);
+                TryWriteStartupTrace("App.OnLaunched: ActivateMainWindowAsync done");
+
+                TryWriteStartupTrace("App.OnLaunched: before BluetoothRadioMonitorService.InitializeAsync");
+                await Ioc.Default.GetRequiredService<BluetoothRadioMonitorService>().InitializeAsync();
+                TryWriteStartupTrace("App.OnLaunched: BluetoothRadioMonitorService.InitializeAsync done");
+                Ioc.Default.GetRequiredService<AudioOutputDeviceWatcherService>().Start();
+
+                TryWriteStartupTrace("App.OnLaunched: before AutoBrightnessService.InitializeForWindow");
+                Ioc.Default.GetRequiredService<AutoBrightnessService>().InitializeForWindow(MainWindow);
+                TryWriteStartupTrace("App.OnLaunched: AutoBrightnessService.InitializeForWindow done");
+
+                Ioc.Default.GetRequiredService<IAudioRouteHotkeyService>().InitializeForWindow(MainWindow);
+                TryWriteStartupTrace("App.OnLaunched: hotkey service initialized on UI thread");
+
+                Ioc.Default.GetRequiredService<AutomationObservationService>().InitializeForWindow(MainWindow);
+                TryWriteStartupTrace("App.OnLaunched: automation observation window initialized on UI thread");
+
+                Ioc.Default.GetRequiredService<RuntimeHealthService>()
+                    .ReportNormal(RuntimeModule.InterfaceAndSettings);
+
+                _ = Task.Run(async () => await RunDeferredStartupWorkAsync());
+
+                if (startupLaunch)
+                {
+                    TryWriteStartupTrace("App.OnLaunched: startup launch kept window hidden");
+                }
             }
-            catch (COMException ex) when ((uint)ex.HResult == 0x80040154)
+            catch (Exception ex)
             {
-                TryWriteStartupTrace("App.OnLaunched: AppInstance unavailable, use LaunchActivatedEventArgs");
-                _log.Warning(ex, "AppInstance unavailable in OnLaunched, fallback to launch args.");
-            }
-
-            // Initialize the window
-            MainWindow = new MainWindow();
-            TryWriteStartupTrace("App.OnLaunched: MainWindow created");
-            InitializeSystemThemeMonitoring();
-            TryWriteStartupTrace("App.OnLaunched: system theme monitoring initialized");
-
-            _log.Information($"App launched. Launch args type: {args.GetType().Name}.");
-
-            // Check startup
-            _ = StartupHelper.CheckStartup();
-
-            // TODO: Initialize others things
-
-            await Ioc.Default.GetRequiredService<IActivationService>().ActivateMainWindowAsync(args, showWindow: !startupLaunch);
-            TryWriteStartupTrace("App.OnLaunched: ActivateMainWindowAsync done");
-
-            TryWriteStartupTrace("App.OnLaunched: before BluetoothRadioMonitorService.InitializeAsync");
-            await Ioc.Default.GetRequiredService<BluetoothRadioMonitorService>().InitializeAsync();
-            TryWriteStartupTrace("App.OnLaunched: BluetoothRadioMonitorService.InitializeAsync done");
-            Ioc.Default.GetRequiredService<AudioOutputDeviceWatcherService>().Start();
-
-            TryWriteStartupTrace("App.OnLaunched: before AutoBrightnessService.InitializeForWindow");
-            Ioc.Default.GetRequiredService<AutoBrightnessService>().InitializeForWindow(MainWindow);
-            TryWriteStartupTrace("App.OnLaunched: AutoBrightnessService.InitializeForWindow done");
-
-            Ioc.Default.GetRequiredService<IAudioRouteHotkeyService>().InitializeForWindow(MainWindow);
-            TryWriteStartupTrace("App.OnLaunched: hotkey service initialized on UI thread");
-
-            Ioc.Default.GetRequiredService<AutomationObservationService>().InitializeForWindow(MainWindow);
-            TryWriteStartupTrace("App.OnLaunched: automation observation window initialized on UI thread");
-
-            _ = Task.Run(async () => await RunDeferredStartupWorkAsync());
-
-            if (startupLaunch)
-            {
-                TryWriteStartupTrace("App.OnLaunched: startup launch kept window hidden");
+                TryWriteStartupTrace($"App.OnLaunched ActivateAsync failed: {ex}");
+                _log.Error(ex, "Application launch failed before the main window became visible.");
             }
         }
     }
@@ -445,6 +472,7 @@ public partial class App : Application
 
             await ExecuteStartupStepAsync(
                 "Deferred startup: BackgroundEfficiencyService.Initialize",
+                RuntimeModule.BackgroundIntegration,
                 () =>
                 {
                     Ioc.Default.GetRequiredService<IBackgroundEfficiencyService>().Initialize();
@@ -453,17 +481,23 @@ public partial class App : Application
 
             await ExecuteStartupStepAsync(
                 "Deferred startup: AutoBrightnessService.StartAsync",
+                RuntimeModule.BackgroundIntegration,
                 () => Ioc.Default.GetRequiredService<AutoBrightnessService>().StartAsync());
 
             await ExecuteStartupStepAsync(
                 "Deferred startup: automation restore and initialization",
+                RuntimeModule.AutomationManagement,
                 async () =>
                 {
                     var pipelineRepository = Ioc.Default.GetRequiredService<IAutomationPipelineRepository>();
                     await pipelineRepository.InitializationTask;
+                    await pipelineRepository.EnsureSystemPerformanceRulesAsync();
                     var loadStatus = pipelineRepository.LastLoadStatus;
                     if (!loadStatus.Success)
                     {
+                        Ioc.Default.GetRequiredService<RuntimeHealthService>().ReportWarning(
+                            RuntimeModule.AutomationManagement,
+                            string.IsNullOrWhiteSpace(loadStatus.ErrorMessage) ? "自动化配置未能正常载入" : loadStatus.ErrorMessage);
                         TryWriteStartupTrace(
                             $"Deferred startup: automation pipelines unavailable, starting with an empty user list. error={loadStatus.ErrorMessage}");
                     }
@@ -476,6 +510,12 @@ public partial class App : Application
                     await Ioc.Default.GetRequiredService<IAutomationSystemContextHub>().InitializeAsync();
                     var automationRuleEngine = Ioc.Default.GetRequiredService<AutomationRuleEngine>();
                     automationRuleEngine.Initialize();
+                    var runtimeHealth = Ioc.Default.GetRequiredService<RuntimeHealthService>();
+                    if (loadStatus.Success)
+                    {
+                        runtimeHealth.ReportNormal(RuntimeModule.AutomationManagement);
+                    }
+                    runtimeHealth.ReportNormal(RuntimeModule.ActionExecution);
                     // 决策层：订阅代理状态变化事件，决定是否弹提示。必须在观察服务启动前完成订阅。
                     _ = Ioc.Default.GetRequiredService<AutomationProxyNotificationPolicy>();
                     // 各模块先把采集申请交到调度中心，再启动观察服务。
@@ -484,6 +524,8 @@ public partial class App : Application
                     _ = Ioc.Default.GetRequiredService<AutomationPerformanceModeWatcher>();
                     await MainWindow.EnqueueOrInvokeAsync(async (_) =>
                         await Ioc.Default.GetRequiredService<AutomationObservationService>().StartAsync());
+                    runtimeHealth.ReportNormal(RuntimeModule.SystemAwareness);
+                    runtimeHealth.ReportNormal(RuntimeModule.Scheduler);
                     Ioc.Default.GetRequiredService<AutomationProgramListRefreshService>().Start();
                     // 启动类动作可能很慢（起进程、等窗口），放到观察服务起来之后再跑，
                     // 否则这段时间系统发生的事件会全部漏掉。
@@ -492,17 +534,11 @@ public partial class App : Application
 
             await ExecuteStartupStepAsync(
                 "Deferred startup: AutoDayNightService.StartAsync",
+                RuntimeModule.BackgroundIntegration,
                 () => Ioc.Default.GetRequiredService<AutoDayNightService>().StartAsync());
 
-            try
-            {
-                Ioc.Default.GetRequiredService<AutoBrightnessService>().UpdateNightLightState();
-                TryWriteStartupTrace("Deferred startup: Night Light state initialized");
-            }
-            catch (Exception ex)
-            {
-                _log.Warning(ex, "Failed to initialize Night Light state");
-            }
+            Ioc.Default.GetRequiredService<RuntimeHealthService>()
+                .ReportNormal(RuntimeModule.BackgroundIntegration);
 
         }
         catch (Exception ex)
@@ -511,7 +547,10 @@ public partial class App : Application
         }
     }
 
-    private static async Task ExecuteStartupStepAsync(string stepName, Func<Task> action)
+    private static async Task ExecuteStartupStepAsync(
+        string stepName,
+        RuntimeModule failureModule,
+        Func<Task> action)
     {
         TryWriteStartupTrace($"{stepName} - start");
         try
@@ -521,6 +560,8 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
+            Ioc.Default.GetRequiredService<RuntimeHealthService>()
+                .ReportError(failureModule, ex.Message);
             TryWriteStartupTrace($"{stepName} - failed: {ex.GetType().Name}: {ex.Message}");
             throw;
         }
@@ -536,6 +577,9 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
+                Ioc.Default.GetRequiredService<RuntimeHealthService>().ReportError(
+                    RuntimeModule.ActionExecution,
+                    ex.Message);
                 TryWriteStartupTrace($"Startup pipelines failed. error={ex.Message}");
                 Serilog.Log.Warning(ex, "Startup automation pipelines failed");
             }
@@ -664,16 +708,6 @@ public partial class App : Application
             // ignore
         }
 
-        // Restore Night Light before exiting
-        try
-        {
-            Ioc.Default.GetRequiredService<NightLightStateService>().RestoreNightLight();
-        }
-        catch
-        {
-            // ignore
-        }
-
         // Stop auto brightness service
         try
         {
@@ -710,6 +744,15 @@ public partial class App : Application
 
         // Close all windows
         _log.Information("ExitAsync closing all windows.");
+        try
+        {
+            Ioc.Default.GetRequiredService<Contracts.Services.IDeskBoxFloatingService>().CloseForExit();
+            _log.Information("ExitAsync floating windows closed.");
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Failed to close floating windows during exit.");
+        }
         await WindowsExtensions.CloseAllWindowsAsync();
 
         try

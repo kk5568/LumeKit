@@ -8,5 +8,6 @@ public enum DeskBoxFloatingPlacement
     TrayIconLeftAligned,
     Cursor,
     ScreenCenter,
+    TopCenter,
     Custom
 }

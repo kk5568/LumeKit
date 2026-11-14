@@ -1,0 +1,59 @@
+<UserControl
+    x:Class="BluetoothAudioReceiver.DeskBoxFloating.Views.DeskBoxIslandPrototype"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid x:Name="IslandRoot"
+          Background="Transparent"
+          Padding="18,0"
+          PointerPressed="OnPointerPressed">
+        <Grid VerticalAlignment="Top">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- The icon and title remain the same elements in both states. -->
+            <Grid x:Name="SharedHeader" ColumnSpacing="10" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon x:Name="StateIcon" Glyph="&#xE706;" FontFamily="Segoe Fluent Icons" FontSize="18" VerticalAlignment="Center" />
+                <Grid Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="StateTitle" Text="自动亮度" FontSize="14" VerticalAlignment="Center">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform x:Name="StateTitleTranslate" />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                    <TextBlock x:Name="StateSubtitle" Text="已根据环境光完成调整" FontSize="12" Opacity="0" VerticalAlignment="Bottom">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform x:Name="StateSubtitleTranslate" Y="8" />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </Grid>
+                <TextBlock x:Name="SummaryMetrics" Grid.Column="2" Text="65% | 6514K" FontSize="12" Opacity="0.72" VerticalAlignment="Center" />
+            </Grid>
+
+            <Grid x:Name="DetailsLayout" Grid.Row="1" Height="58" Margin="4,10,4,0" Opacity="0">
+                <Grid.RenderTransform>
+                    <TranslateTransform x:Name="DetailsTranslate" Y="10" />
+                </Grid.RenderTransform>
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="亮度" FontSize="12" Opacity="0.72" />
+                        <TextBlock Text="65%" FontSize="20" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock Text="色温" FontSize="12" Opacity="0.72" />
+                        <TextBlock Text="6514K" FontSize="20" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

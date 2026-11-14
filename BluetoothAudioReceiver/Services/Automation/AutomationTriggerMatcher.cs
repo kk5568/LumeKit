@@ -42,6 +42,7 @@ internal sealed class AutomationTriggerMatcher
             AutomationTriggerCatalog.AppStopped => MatchProcessTrigger(trigger, triggerEvent, out reason),
             AutomationTriggerCatalog.PerformanceModeEntered => MatchPerformanceModeTrigger(trigger, triggerEvent, "entered", out reason),
             AutomationTriggerCatalog.PerformanceModeExited => MatchPerformanceModeTrigger(trigger, triggerEvent, "exited", out reason),
+            AutomationTriggerCatalog.DynamicPerformanceChanged => MatchDynamicPerformanceTrigger(trigger, triggerEvent, out reason),
             AutomationTriggerCatalog.PowerChanged => MatchPowerStateTrigger(trigger, triggerEvent, out reason),
             AutomationTriggerCatalog.BluetoothConnected => MatchPayloadValue(trigger, triggerEvent, "deviceId", out reason),
             AutomationTriggerCatalog.OutputDeviceChanged => AutomationOutputDeviceTriggerMatcher.Matches(trigger, triggerEvent),
@@ -169,7 +170,9 @@ internal sealed class AutomationTriggerMatcher
 
         if (!MatchOptionalPayload(trigger, triggerEvent, "windowMode") ||
             !MatchOptionalPayload(trigger, triggerEvent, "gpuThreshold") ||
-            !MatchOptionalPayload(trigger, triggerEvent, "gpuComparison"))
+            !MatchOptionalPayload(trigger, triggerEvent, "gpuComparison") ||
+            !MatchOptionalPayload(trigger, triggerEvent, "stage") ||
+            !MatchOptionalPayload(trigger, triggerEvent, "powerSource"))
         {
             reason = "性能模式参数不匹配";
             return false;
@@ -179,6 +182,15 @@ internal sealed class AutomationTriggerMatcher
                string.IsNullOrWhiteSpace(actualState) ||
                string.Equals(actualState, expectedState, StringComparison.OrdinalIgnoreCase);
         reason = matched ? string.Empty : $"模式状态不匹配：需要={expectedState}，实际={actualState}";
+        return matched;
+    }
+
+    private static bool MatchDynamicPerformanceTrigger(AutomationTriggerDefinition trigger, TriggerEvent triggerEvent, out string reason)
+    {
+        reason = string.Empty;
+        var matched = MatchOptionalPayload(trigger, triggerEvent, "stage") &&
+                      MatchOptionalPayload(trigger, triggerEvent, "powerSource");
+        reason = matched ? string.Empty : "动态性能阶段或供电状态不匹配";
         return matched;
     }
 

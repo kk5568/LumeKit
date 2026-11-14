@@ -336,7 +336,7 @@ internal class NotificationService : INotificationService
             deskBoxLayout: true);
     }
 
-    private static bool ShouldSuppressByScene(IAppSettingsService settings)
+    internal static bool ShouldSuppressByScene(IAppSettingsService settings)
     {
         var processName = GetForegroundProcessName().ToLowerInvariant();
         var isFullscreen = IsForegroundFullscreen();

@@ -9,7 +9,11 @@ internal enum ObservationUsageScene
     VideoPlayback,
     Game,
     LowBattery,
-    Locked
+    Locked,
+    Suspended,
+    Idle,
+    AppBackground,
+    OnBattery
 }
 
 internal enum ObservationInfoKind
@@ -29,7 +33,8 @@ internal sealed record ObservationRequest(
     ObservationUsageScene Scene,
     string Reason,
     IReadOnlyList<ObservationInfoKind> Items,
-    Guid CorrelationId = default)
+    Guid CorrelationId = default,
+    long PlanVersion = 0)
 {
     public bool Includes(ObservationInfoKind kind) => Items.Contains(kind);
 }

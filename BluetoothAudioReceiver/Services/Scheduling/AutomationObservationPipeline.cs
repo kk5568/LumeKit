@@ -6,14 +6,14 @@ namespace BluetoothAudioReceiver.Services;
 internal sealed class AutomationObservationCollector
 {
     private readonly AutomationObservationGetterSelector _getterSelector;
-    private readonly Func<CancellationToken> _getCancellationToken;
+    private readonly Func<ObservationRequest, bool> _isRequestCurrent;
 
     public AutomationObservationCollector(
         AutomationObservationGetterSelector getterSelector,
-        Func<CancellationToken> getCancellationToken)
+        Func<ObservationRequest, bool> isRequestCurrent)
     {
         _getterSelector = getterSelector;
-        _getCancellationToken = getCancellationToken;
+        _isRequestCurrent = isRequestCurrent;
     }
 
     public async Task<AutomationDynamicContext> CollectAsync(
@@ -24,10 +24,12 @@ internal sealed class AutomationObservationCollector
         var current = previous with { CapturedAt = DateTimeOffset.Now };
         foreach (var plan in _getterSelector.BuildPlan(request.Items))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_isRequestCurrent(request)) throw new OperationCanceledException(cancellationToken);
             current = await plan.Getter.CaptureAsync(
                 current,
                 plan.Items,
-                _getCancellationToken());
+                cancellationToken);
         }
 
         return current;
@@ -42,7 +44,10 @@ internal readonly record struct PerformanceSample(
     int? ProcessId,
     bool IsFullscreen,
     float? GpuUsagePercent,
-    DateTimeOffset CapturedAt);
+    DateTimeOffset CapturedAt,
+    float? SystemCpuUsagePercent,
+    float? SystemGpuUsagePercent,
+    bool? IsOnBattery);
 
 internal sealed class AutomationObservationEventDispatcher
 {

@@ -11,6 +11,7 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(AppSettingsService));
     private readonly ILocalSettingsService _localSettingsService = localSettingsService;
     private readonly LocalSettingsKeys _localSettingsKeys = localSettingsKeys;
+    internal event EventHandler? ObservationDemandChanged;
 
     private bool _isInitialized;
     public void Initialize()
@@ -33,6 +34,19 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
             DisableNotificationInFullscreen = GetDataFromSettings(snapshot, _localSettingsKeys.DisableNotificationInFullscreenKey, false);
             DisableNotificationInRecordingOrLive = GetDataFromSettings(snapshot, _localSettingsKeys.DisableNotificationInRecordingOrLiveKey, false);
             HideNotificationWhenTrayPopupVisible = GetDataFromSettings(snapshot, _localSettingsKeys.HideNotificationWhenTrayPopupVisibleKey, false);
+            IslandEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.IslandEnabledKey, DefaultIslandEnabled);
+            IslandMaterialType = NormalizeIslandMaterialType(GetDataFromSettings(
+                snapshot,
+                _localSettingsKeys.IslandMaterialTypeKey,
+                DefaultIslandMaterialType));
+            IslandLayoutPreset = NormalizeIslandLayoutPreset(GetDataFromSettings(snapshot, _localSettingsKeys.IslandLayoutPresetKey, DefaultIslandLayoutPreset));
+            IslandWidth = NormalizeIslandWidth(GetDataFromSettings(snapshot, _localSettingsKeys.IslandWidthKey, DefaultIslandWidth));
+            IslandHeight = NormalizeIslandHeight(GetDataFromSettings(snapshot, _localSettingsKeys.IslandHeightKey, DefaultIslandHeight));
+            IslandTopMargin = NormalizeIslandTopMargin(GetDataFromSettings(snapshot, _localSettingsKeys.IslandTopMarginKey, DefaultIslandTopMargin));
+            IslandHorizontalPosition = NormalizeIslandHorizontalPosition(GetDataFromSettings(snapshot, _localSettingsKeys.IslandHorizontalPositionKey, DefaultIslandHorizontalPosition));
+            IslandHorizontalOffset = NormalizeIslandHorizontalOffset(GetDataFromSettings(snapshot, _localSettingsKeys.IslandHorizontalOffsetKey, DefaultIslandHorizontalOffset));
+            IslandAutoBrightnessStatusEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.IslandAutoBrightnessStatusEnabledKey, DefaultIslandAutoBrightnessStatusEnabled);
+            IslandAutoBrightnessDetailsEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.IslandAutoBrightnessDetailsEnabledKey, DefaultIslandAutoBrightnessDetailsEnabled);
             DeskBoxFloatingTestDurationMilliseconds = NormalizeDeskBoxFloatingTestDurationMilliseconds(
                 GetDataFromSettings(
                     snapshot,
@@ -54,6 +68,7 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
                     DefaultDeskBoxFloatingMaterialType));
             PreferredInputDeviceId = GetDataFromSettings(snapshot, _localSettingsKeys.PreferredInputDeviceIdKey, DefaultPreferredInputDeviceId);
             PreferredOutputDeviceId = GetDataFromSettings(snapshot, _localSettingsKeys.PreferredOutputDeviceIdKey, DefaultPreferredOutputDeviceId);
+            PreferredCameraDeviceId = GetDataFromSettings(snapshot, _localSettingsKeys.PreferredCameraDeviceIdKey, DefaultPreferredCameraDeviceId);
             InputHotkey = GetDataFromSettings(snapshot, _localSettingsKeys.InputHotkeyKey, DefaultInputHotkey);
             OutputHotkey = GetDataFromSettings(snapshot, _localSettingsKeys.OutputHotkeyKey, DefaultOutputHotkey);
             AutoBrightnessHotkey = GetDataFromSettings(snapshot, _localSettingsKeys.AutoBrightnessHotkeyKey, DefaultAutoBrightnessHotkey);
@@ -70,13 +85,12 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
                     snapshot,
                     _localSettingsKeys.AutoBrightnessOnForegroundCooldownMinutesKey,
                     DefaultAutoBrightnessOnForegroundCooldownMinutes));
-            DisableNightLightEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.DisableNightLightEnabledKey, DefaultDisableNightLightEnabled);
-            DisableNightLightAtNightEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.DisableNightLightAtNightEnabledKey, DefaultDisableNightLightAtNightEnabled);
             AutoDayNightEnabled = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightEnabledKey, DefaultAutoDayNightEnabled);
             AutoDayNightCity = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightCityKey, DefaultAutoDayNightCity);
             AutoDayNightUseCity = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightUseCityKey, DefaultAutoDayNightUseCity);
             AutoDayNightUseSystemLocation = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightUseSystemLocationKey, DefaultAutoDayNightUseSystemLocation);
             AutoDayNightUseCustomNightSchedule = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightUseCustomNightScheduleKey, DefaultAutoDayNightUseCustomNightSchedule);
+            AutoDayNightUseNightLight = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightUseNightLightKey, DefaultAutoDayNightUseNightLight);
             AutoDayNightNightStartTime = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightNightStartTimeKey, DefaultAutoDayNightNightStartTime);
             AutoDayNightNightEndTime = GetDataFromSettings(snapshot, _localSettingsKeys.AutoDayNightNightEndTimeKey, DefaultAutoDayNightNightEndTime);
             BackgroundEfficiencyProcessWhitelist = GetDataFromSettings(snapshot, _localSettingsKeys.BackgroundEfficiencyProcessWhitelistKey, DefaultBackgroundEfficiencyProcessWhitelist);
@@ -314,6 +328,7 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.ProxyStatusNotificationEnabledKey, enabled);
         ProxyStatusNotificationEnabled = enabled;
+        ObservationDemandChanged?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion
@@ -414,6 +429,196 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
         await SaveDataInSettingsAsync(_localSettingsKeys.HideNotificationWhenTrayPopupVisibleKey, enabled);
         HideNotificationWhenTrayPopupVisible = enabled;
     }
+
+    private bool islandEnabled = DefaultIslandEnabled;
+    public bool IslandEnabled
+    {
+        get => islandEnabled;
+        private set => islandEnabled = value;
+    }
+
+    private const bool DefaultIslandEnabled = true;
+    private const string DefaultIslandMaterialType = DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.AcrylicBase;
+
+    private const string DefaultIslandLayoutPreset = "Standard";
+    private const int DefaultIslandWidth = 280;
+    private const int DefaultIslandHeight = 55;
+    private const int DefaultIslandTopMargin = 50;
+    private const string DefaultIslandHorizontalPosition = "Center";
+    private const int DefaultIslandHorizontalOffset = 0;
+    private const bool DefaultIslandAutoBrightnessStatusEnabled = true;
+    private const bool DefaultIslandAutoBrightnessDetailsEnabled = true;
+    public async Task SetIslandEnabledAsync(bool enabled)
+    {
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandEnabledKey, enabled);
+        IslandEnabled = enabled;
+    }
+
+    private string islandMaterialType = DefaultIslandMaterialType;
+    public string IslandMaterialType
+    {
+        get => islandMaterialType;
+        private set
+        {
+            islandMaterialType = NormalizeIslandMaterialType(value);
+            DeskBoxFloating.Models.AppSettings.Current.IslandMaterialType = islandMaterialType;
+        }
+    }
+
+    public async Task SetIslandMaterialTypeAsync(string materialType)
+    {
+        IslandMaterialType = materialType;
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandMaterialTypeKey, IslandMaterialType);
+    }
+
+    private string islandLayoutPreset = DefaultIslandLayoutPreset;
+    public string IslandLayoutPreset
+    {
+        get => islandLayoutPreset;
+        private set => islandLayoutPreset = NormalizeIslandLayoutPreset(value);
+    }
+
+    private int islandWidth = DefaultIslandWidth;
+    public int IslandWidth
+    {
+        get => islandWidth;
+        private set
+        {
+            islandWidth = NormalizeIslandWidth(value);
+            DeskBoxFloating.Models.AppSettings.Current.IslandWidth = islandWidth;
+        }
+    }
+
+    private int islandHeight = DefaultIslandHeight;
+    public int IslandHeight
+    {
+        get => islandHeight;
+        private set
+        {
+            islandHeight = NormalizeIslandHeight(value);
+            DeskBoxFloating.Models.AppSettings.Current.IslandHeight = islandHeight;
+        }
+    }
+
+    private int islandTopMargin = DefaultIslandTopMargin;
+    public int IslandTopMargin
+    {
+        get => islandTopMargin;
+        private set
+        {
+            islandTopMargin = NormalizeIslandTopMargin(value);
+            DeskBoxFloating.Models.AppSettings.Current.IslandTopMargin = islandTopMargin;
+        }
+    }
+
+    private string islandHorizontalPosition = DefaultIslandHorizontalPosition;
+    public string IslandHorizontalPosition
+    {
+        get => islandHorizontalPosition;
+        private set
+        {
+            islandHorizontalPosition = NormalizeIslandHorizontalPosition(value);
+            DeskBoxFloating.Models.AppSettings.Current.IslandHorizontalPosition = islandHorizontalPosition;
+        }
+    }
+
+    private int islandHorizontalOffset = DefaultIslandHorizontalOffset;
+    public int IslandHorizontalOffset
+    {
+        get => islandHorizontalOffset;
+        private set
+        {
+            islandHorizontalOffset = NormalizeIslandHorizontalOffset(value);
+            DeskBoxFloating.Models.AppSettings.Current.IslandHorizontalOffset = islandHorizontalOffset;
+        }
+    }
+
+    public async Task SetIslandLayoutPresetAsync(string preset)
+    {
+        IslandLayoutPreset = preset;
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandLayoutPresetKey, IslandLayoutPreset);
+    }
+
+    public async Task SetIslandWidthAsync(int width)
+    {
+        IslandWidth = width;
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandWidthKey, IslandWidth);
+    }
+
+    public async Task SetIslandHeightAsync(int height)
+    {
+        IslandHeight = height;
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandHeightKey, IslandHeight);
+    }
+
+    public async Task SetIslandTopMarginAsync(int margin)
+    {
+        IslandTopMargin = margin;
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandTopMarginKey, IslandTopMargin);
+    }
+
+    public async Task SetIslandHorizontalPositionAsync(string position)
+    {
+        IslandHorizontalPosition = position;
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandHorizontalPositionKey, IslandHorizontalPosition);
+    }
+
+    public async Task SetIslandHorizontalOffsetAsync(int offset)
+    {
+        IslandHorizontalOffset = offset;
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandHorizontalOffsetKey, IslandHorizontalOffset);
+    }
+
+    private bool islandAutoBrightnessStatusEnabled = DefaultIslandAutoBrightnessStatusEnabled;
+    public bool IslandAutoBrightnessStatusEnabled
+    {
+        get => islandAutoBrightnessStatusEnabled;
+        private set => islandAutoBrightnessStatusEnabled = value;
+    }
+
+    public async Task SetIslandAutoBrightnessStatusEnabledAsync(bool enabled)
+    {
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandAutoBrightnessStatusEnabledKey, enabled);
+        IslandAutoBrightnessStatusEnabled = enabled;
+    }
+
+    private bool islandAutoBrightnessDetailsEnabled = DefaultIslandAutoBrightnessDetailsEnabled;
+    public bool IslandAutoBrightnessDetailsEnabled
+    {
+        get => islandAutoBrightnessDetailsEnabled;
+        private set => islandAutoBrightnessDetailsEnabled = value;
+    }
+
+    public async Task SetIslandAutoBrightnessDetailsEnabledAsync(bool enabled)
+    {
+        await SaveDataInSettingsAsync(_localSettingsKeys.IslandAutoBrightnessDetailsEnabledKey, enabled);
+        IslandAutoBrightnessDetailsEnabled = enabled;
+    }
+
+    private static string NormalizeIslandLayoutPreset(string? preset) => preset switch
+    {
+        "Compact" or "Standard" or "Wide" or "Custom" => preset,
+        _ => DefaultIslandLayoutPreset
+    };
+
+    private static string NormalizeIslandMaterialType(string? materialType) => materialType is
+        DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.Acrylic or
+        DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.AcrylicBase or
+        DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.Mica or
+        DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.MicaAlt or
+        DeskBoxFloating.Models.DeskBoxFloatingMaterialTypes.Solid
+            ? materialType
+            : DefaultIslandMaterialType;
+
+    private static int NormalizeIslandWidth(int width) => Math.Clamp(width, 180, 600);
+    private static int NormalizeIslandHeight(int height) => Math.Clamp(height, 40, 180);
+    private static int NormalizeIslandTopMargin(int margin) => Math.Clamp(margin, 0, 300);
+    private static int NormalizeIslandHorizontalOffset(int offset) => Math.Clamp(offset, -600, 600);
+    private static string NormalizeIslandHorizontalPosition(string? position) => position switch
+    {
+        "Left" or "Center" or "Right" or "Custom" => position,
+        _ => DefaultIslandHorizontalPosition
+    };
 
     private int deskBoxFloatingTestDurationMilliseconds = DefaultDeskBoxFloatingTestDurationMilliseconds;
     public int DeskBoxFloatingTestDurationMilliseconds
@@ -548,6 +753,26 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     #endregion
 
+    #region PreferredCameraDeviceId
+
+    private string preferredCameraDeviceId = DefaultPreferredCameraDeviceId;
+    public string PreferredCameraDeviceId
+    {
+        get => preferredCameraDeviceId;
+        private set => preferredCameraDeviceId = value?.Trim() ?? string.Empty;
+    }
+
+    private const string DefaultPreferredCameraDeviceId = "";
+
+    public async Task SetPreferredCameraDeviceIdAsync(string deviceId)
+    {
+        var normalized = deviceId?.Trim() ?? string.Empty;
+        await SaveDataInSettingsAsync(_localSettingsKeys.PreferredCameraDeviceIdKey, normalized);
+        PreferredCameraDeviceId = normalized;
+    }
+
+    #endregion
+
     #region InputHotkey
 
     private string inputHotkey = DefaultInputHotkey;
@@ -669,6 +894,7 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.AutoBrightnessOnUnlockEnabledKey, enabled);
         AutoBrightnessOnUnlockEnabled = enabled;
+        ObservationDemandChanged?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion
@@ -713,6 +939,7 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.AutoBrightnessOnForegroundEnabledKey, enabled);
         AutoBrightnessOnForegroundEnabled = enabled;
+        ObservationDemandChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private bool autoBrightnessOnForegroundNotificationEnabled = DefaultAutoBrightnessOnForegroundNotificationEnabled;
@@ -757,56 +984,6 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
 
     #endregion
 
-    #region DisableNightLightEnabled
-
-    private bool disableNightLightEnabled = DefaultDisableNightLightEnabled;
-    public bool DisableNightLightEnabled
-    {
-        get => disableNightLightEnabled;
-        private set
-        {
-            if (disableNightLightEnabled != value)
-            {
-                disableNightLightEnabled = value;
-            }
-        }
-    }
-
-    private const bool DefaultDisableNightLightEnabled = false;
-
-    public async Task SetDisableNightLightEnabledAsync(bool enabled)
-    {
-        await SaveDataInSettingsAsync(_localSettingsKeys.DisableNightLightEnabledKey, enabled);
-        DisableNightLightEnabled = enabled;
-    }
-
-    #endregion
-
-    #region DisableNightLightAtNightEnabled
-
-    private bool disableNightLightAtNightEnabled = DefaultDisableNightLightAtNightEnabled;
-    public bool DisableNightLightAtNightEnabled
-    {
-        get => disableNightLightAtNightEnabled;
-        private set
-        {
-            if (disableNightLightAtNightEnabled != value)
-            {
-                disableNightLightAtNightEnabled = value;
-            }
-        }
-    }
-
-    private const bool DefaultDisableNightLightAtNightEnabled = false;
-
-    public async Task SetDisableNightLightAtNightEnabledAsync(bool enabled)
-    {
-        await SaveDataInSettingsAsync(_localSettingsKeys.DisableNightLightAtNightEnabledKey, enabled);
-        DisableNightLightAtNightEnabled = enabled;
-    }
-
-    #endregion
-
     #region AutoDayNightEnabled
 
     private bool autoDayNightEnabled = DefaultAutoDayNightEnabled;
@@ -828,6 +1005,7 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.AutoDayNightEnabledKey, enabled);
         AutoDayNightEnabled = enabled;
+        ObservationDemandChanged?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion
@@ -929,6 +1107,25 @@ internal class AppSettingsService(ILocalSettingsService localSettingsService, Lo
     {
         await SaveDataInSettingsAsync(_localSettingsKeys.AutoDayNightUseCustomNightScheduleKey, enabled);
         AutoDayNightUseCustomNightSchedule = enabled;
+    }
+
+    #endregion
+
+    #region AutoDayNightUseNightLight
+
+    private bool autoDayNightUseNightLight = DefaultAutoDayNightUseNightLight;
+    public bool AutoDayNightUseNightLight
+    {
+        get => autoDayNightUseNightLight;
+        private set => autoDayNightUseNightLight = value;
+    }
+
+    private const bool DefaultAutoDayNightUseNightLight = false;
+
+    public async Task SetAutoDayNightUseNightLightAsync(bool enabled)
+    {
+        await SaveDataInSettingsAsync(_localSettingsKeys.AutoDayNightUseNightLightKey, enabled);
+        AutoDayNightUseNightLight = enabled;
     }
 
     #endregion

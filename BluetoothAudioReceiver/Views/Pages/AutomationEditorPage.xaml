@@ -15,6 +15,7 @@
         <local:AutomationShortcutOptionConverter x:Key="AutomationShortcutOptionConverter" />
         <local:AutomationSectionKindVisibilityConverter x:Key="AutomationSectionKindVisibilityConverter" />
         <local:AutomationActionTitleVisibilityConverter x:Key="AutomationActionTitleVisibilityConverter" />
+        <local:AutomationTextVisibilityConverter x:Key="AutomationTextVisibilityConverter" />
         <local:AutomationActionIconGlyphConverter x:Key="AutomationActionIconGlyphConverter" />
 
         <Thickness x:Key="EditorPagePadding">24</Thickness>
@@ -133,10 +134,17 @@
                         <ComboBox
                             Grid.Column="1"
                             Style="{StaticResource EditorComboBoxStyle}"
-                            Visibility="{Binding Title, Converter={StaticResource AutomationActionTitleVisibilityConverter}, ConverterParameter=程序启动|程序退出|游戏模式|电源状态|蓝牙已连接|到达日出|到达日落}"
+                            Visibility="{Binding Title, Converter={StaticResource AutomationActionTitleVisibilityConverter}, ConverterParameter=程序启动|程序退出|游戏模式|电源状态|动态性能|蓝牙已连接|到达日出|到达日落|前台程序|全屏应用|游戏运行中|充电中|系统主题}"
                             ItemsSource="{Binding ParameterOptions}"
                             SelectedItem="{Binding Subtitle, Mode=TwoWay}"
                             SelectionChanged="ParameterCombo_SelectionChanged" />
+
+                        <ComboBox
+                            Grid.Column="1"
+                            Style="{StaticResource EditorComboBoxStyle}"
+                            Visibility="{Binding Title, Converter={StaticResource AutomationActionTitleVisibilityConverter}, ConverterParameter=动态性能}"
+                            ItemsSource="{Binding DataContext.DynamicPowerSourceOptions, ElementName=RootPage}"
+                            SelectedItem="{Binding SecondaryValue, Mode=TwoWay}" />
 
                         <StackPanel
                             Grid.Column="1"
@@ -158,6 +166,33 @@
                                 SelectedItem="{Binding Subtitle, Mode=TwoWay}"
                                 SelectionChanged="ParameterCombo_SelectionChanged" />
                         </StackPanel>
+
+                        <StackPanel
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="8"
+                            Visibility="{Binding Title, Converter={StaticResource AutomationActionTitleVisibilityConverter}, ConverterParameter=电池电量}">
+                            <ComboBox
+                                Height="{StaticResource ParameterControlHeight}"
+                                Width="88"
+                                HorizontalAlignment="Right"
+                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                ItemsSource="{Binding DataContext.ConditionComparisonOptions, ElementName=RootPage}"
+                                SelectedItem="{Binding SecondaryValue, Mode=TwoWay}" />
+
+                            <ComboBox
+                                Style="{StaticResource EditorComboBoxStyle}"
+                                ItemsSource="{Binding ParameterOptions}"
+                                SelectedItem="{Binding Subtitle, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource EditorTextBoxStyle}"
+                            Visibility="{Binding Title, Converter={StaticResource AutomationActionTitleVisibilityConverter}, ConverterParameter=窗口标题|网络名称}"
+                            Text="{Binding RawValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="留空表示不限" />
 
                         <StackPanel
                             Grid.Column="1"
@@ -240,6 +275,7 @@
                 CornerRadius="{StaticResource NodeCardCornerRadius}">
                 <Grid RowSpacing="14">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -372,7 +408,7 @@
                     </Grid>
 
                     <StackPanel
-                        Grid.Row="2"
+                        Grid.Row="3"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Spacing="6">

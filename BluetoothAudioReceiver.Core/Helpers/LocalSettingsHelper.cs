@@ -22,8 +22,16 @@ public class LocalSettingsHelper
         }
         else
         {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            applicationDataPath = Path.Combine(appDataPath, Constants.BluetoothAudioReceiver, Constants.ApplicationDataFolder);
+            var portableMarker = Path.Combine(AppContext.BaseDirectory, "portable.flag");
+            if (File.Exists(portableMarker))
+            {
+                applicationDataPath = Path.Combine(AppContext.BaseDirectory, "data");
+            }
+            else
+            {
+                var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                applicationDataPath = Path.Combine(appDataPath, Constants.BluetoothAudioReceiver, Constants.ApplicationDataFolder);
+            }
         }
     }
 

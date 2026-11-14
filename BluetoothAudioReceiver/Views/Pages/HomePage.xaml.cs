@@ -27,6 +27,7 @@ public sealed partial class HomePage : Page
 
         await ViewModel.Bluetooth.OnNavigatedToAsync(null!);
         await ViewModel.HotkeyNotifications.LoadCardsAsync();
+        ViewModel.RefreshRuntimeHealth();
     }
 
     private async void OnAddHotkeyCardClick(object sender, RoutedEventArgs e)
@@ -137,6 +138,11 @@ public sealed partial class HomePage : Page
     private async void OnDeleteAutomationCardClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element || element.DataContext is not AutomationListItem item)
+        {
+            return;
+        }
+
+        if (ViewModel.Automations.IsSystemRule(item.Id))
         {
             return;
         }

@@ -79,7 +79,8 @@ internal sealed class AutomationPerformanceModeWatcher : IDisposable
         return false;
     }
 
-    private bool OnTick(Func<PerformanceSample> capture) => _decisionService.EvaluateAndReportActive(capture);
+    private Task<bool> OnTick(Func<PerformanceSample> capture, CancellationToken cancellationToken)
+        => Task.FromResult(_decisionService.EvaluateAndReportActive(capture));
 
     public void Dispose()
     {

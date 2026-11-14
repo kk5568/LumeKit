@@ -40,12 +40,18 @@ public sealed partial class AutomationListPageViewModel : ObservableRecipient
 
     public async Task RemoveAsync(AutomationListItem item)
     {
+        if (_pipelineRepository.IsSystemRule(item.Id))
+        {
+            return;
+        }
         var next = _pipelineRepository.Pipelines
             .Where(pipeline => pipeline.Id != item.Id)
             .ToArray();
 
         await _pipelineRepository.ReplaceAllAsync(next);
     }
+
+    public bool IsSystemRule(Guid pipelineId) => _pipelineRepository.IsSystemRule(pipelineId);
 
     public async Task<bool> TestAsync(AutomationListItem item)
     {
@@ -92,6 +98,10 @@ public sealed partial class AutomationListPageViewModel : ObservableRecipient
 
     public async Task SetAutomationEnabledAsync(Guid pipelineId, bool isEnabled)
     {
+        if (_pipelineRepository.IsSystemRule(pipelineId))
+        {
+            return;
+        }
         var next = _pipelineRepository.Pipelines.ToList();
         var changed = false;
 

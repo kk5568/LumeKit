@@ -22,6 +22,8 @@ public sealed record DeskBoxFloatingRequest
 
     public int? HeightOverride { get; init; }
 
+    public string? MaterialTypeOverride { get; init; }
+
     public DeskBoxFloatingPlacement? PlacementOverride { get; init; }
 
     public DeskBoxFloatingContentLayout? ContentLayoutOverride { get; init; }
@@ -31,4 +33,8 @@ public sealed record DeskBoxFloatingRequest
     public PointInt32? AnchorPoint { get; init; }
 
     public bool? AutoDismissOverride { get; init; }
+
+    public bool? ActivateOnShowOverride { get; init; }
+
+    public bool IsIslandPreview { get; init; }
 }

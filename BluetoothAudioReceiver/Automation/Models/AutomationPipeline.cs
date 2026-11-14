@@ -3,6 +3,7 @@ namespace BluetoothAudioReceiver.Automation.Models;
 public sealed class AutomationPipeline
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public string? SystemRuleId { get; set; }
     public string Name { get; set; } = string.Empty;
     public bool IsEnabled { get; set; } = true;
     public string Category { get; set; } = "基础";

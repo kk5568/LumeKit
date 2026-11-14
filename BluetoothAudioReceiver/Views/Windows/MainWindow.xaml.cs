@@ -1,7 +1,10 @@
 using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.DependencyInjection;
+using BluetoothAudioReceiver.Contracts.Services;
+using BluetoothAudioReceiver.DeskBoxFloating.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Windowing;
 using BluetoothAudioReceiver.Core.Contracts.Services;
 using Serilog;
 using Windows.Graphics;
@@ -47,6 +50,9 @@ public sealed partial class MainWindow : WindowEx
 
     private readonly WindowManager _manager;
     private readonly IntPtr _handle;
+    private IDeskBoxFloatingService? _floatingService;
+    private IAppSettingsService? _appSettingsService;
+    private bool _islandPreviewVisible;
 
     #endregion
 
@@ -58,6 +64,7 @@ public sealed partial class MainWindow : WindowEx
         _handle = this.GetWindowHandle();
 
         AppWindow.SetIcon(Constants.AppIconPath);
+        AppWindow.Changed += OnWindowStateChanged;
         Title = ConstantHelper.AppDisplayName;
         Content = null;
 
@@ -123,6 +130,7 @@ public sealed partial class MainWindow : WindowEx
         if (!App.CanCloseWindow)
         {
             _log.Information("MainWindow close was intercepted and hidden to keep the app running in background.");
+            HideIslandPreview();
             Hide();
             args.Handled = true;
             return;
@@ -130,6 +138,8 @@ public sealed partial class MainWindow : WindowEx
 #endif
         VisibilityChanged -= MainWindow_VisibilityChanged;
         Closed -= MainWindow_Closed;
+        AppWindow.Changed -= OnWindowStateChanged;
+        HideIslandPreview();
 
         if (App.IsExiting)
         {
@@ -139,6 +149,55 @@ public sealed partial class MainWindow : WindowEx
 
         _log.Information("MainWindow closed, calling App.ExitAsync.");
         await App.ExitAsync();
+    }
+
+    private void OnWindowStateChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (PInvoke.IsIconic(new(WindowHandle)))
+        {
+            ShowIslandPreview();
+        }
+        else
+        {
+            HideIslandPreview();
+        }
+    }
+
+    private void ShowIslandPreview()
+    {
+        _appSettingsService ??= Ioc.Default.GetRequiredService<IAppSettingsService>();
+        if (_islandPreviewVisible || App.IsExiting || !_appSettingsService.IslandEnabled)
+        {
+            return;
+        }
+
+        _islandPreviewVisible = true;
+        _floatingService ??= Ioc.Default.GetRequiredService<IDeskBoxFloatingService>();
+        _floatingService.ShowIslandPreview(new DeskBoxIslandPreview());
+    }
+
+    public void RefreshIslandPreviewVisibility()
+    {
+        if (PInvoke.IsIconic(new(WindowHandle)))
+        {
+            ShowIslandPreview();
+        }
+        else
+        {
+            HideIslandPreview();
+        }
+    }
+
+    private void HideIslandPreview()
+    {
+        if (!_islandPreviewVisible)
+        {
+            return;
+        }
+
+        _islandPreviewVisible = false;
+        _floatingService ??= Ioc.Default.GetRequiredService<IDeskBoxFloatingService>();
+        _floatingService.DismissIslandPreview();
     }
 
     public async Task InitializeApplicationAsync(object activatedEventArgs, bool showWindow = true)

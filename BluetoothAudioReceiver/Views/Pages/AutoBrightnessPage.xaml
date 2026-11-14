@@ -34,6 +34,29 @@
                     BorderThickness="1"
                     CornerRadius="{StaticResource AutoBrightnessCardCornerRadius}"
                     Padding="{StaticResource AutoBrightnessCardPadding}">
+                <Grid ColumnSpacing="{StaticResource AutoBrightnessHeaderSpacing}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="自动亮度摄像头"
+                               VerticalAlignment="Center"
+                               FontFamily="Segoe UI Variable Text"
+                               FontSize="{StaticResource AutoBrightnessBodyFontSize}" />
+                    <ComboBox Grid.Column="1"
+                              Width="{StaticResource AutoBrightnessSelectionBoxWidth}"
+                              ItemsSource="{Binding CameraOptions}"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"
+                              SelectedValue="{Binding SelectedCameraId, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource AutoBrightnessCardCornerRadius}"
+                    Padding="{StaticResource AutoBrightnessCardPadding}">
                 <StackPanel Spacing="{StaticResource AutoBrightnessRowSpacing}">
                     <Grid ColumnSpacing="{StaticResource AutoBrightnessHeaderSpacing}">
                         <Grid.ColumnDefinitions>
@@ -424,81 +447,6 @@
                 </Grid>
             </Border>
 
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{StaticResource AutoBrightnessCardCornerRadius}"
-                    Padding="{StaticResource AutoBrightnessCardPadding}">
-                <Grid ColumnSpacing="{StaticResource AutoBrightnessHeaderSpacing}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Text="禁用系统夜灯"
-                               VerticalAlignment="Center"
-                               FontFamily="Segoe UI Variable Text"
-                               FontSize="{StaticResource AutoBrightnessBodyFontSize}" />
-
-                    <StackPanel Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal"
-                                Spacing="{StaticResource AutoBrightnessHeaderToggleSpacing}">
-                        <TextBlock Text="开"
-                                   VerticalAlignment="Center"
-                                   FontFamily="Segoe UI Variable Text"
-                                   FontSize="{StaticResource AutoBrightnessBodyFontSize}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <ToggleSwitch IsOn="{Binding DisableNightLightEnabled, Mode=TwoWay}"
-                                      VerticalAlignment="Center"
-                                      HorizontalAlignment="Right"
-                                      MinWidth="0"
-                                      Margin="0"
-                                      Padding="0"
-                                      OnContent=""
-                                      OffContent="" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{StaticResource AutoBrightnessCardCornerRadius}"
-                    Padding="{StaticResource AutoBrightnessCardPadding}">
-                <Grid ColumnSpacing="{StaticResource AutoBrightnessHeaderSpacing}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Text="夜间模式关闭色温调节"
-                               VerticalAlignment="Center"
-                               FontFamily="Segoe UI Variable Text"
-                               FontSize="{StaticResource AutoBrightnessBodyFontSize}" />
-
-                    <StackPanel Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal"
-                                Spacing="{StaticResource AutoBrightnessHeaderToggleSpacing}">
-                        <TextBlock Text="开"
-                                   VerticalAlignment="Center"
-                                   FontFamily="Segoe UI Variable Text"
-                                   FontSize="{StaticResource AutoBrightnessBodyFontSize}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <ToggleSwitch IsOn="{Binding DisableNightLightAtNightEnabled, Mode=TwoWay}"
-                                      VerticalAlignment="Center"
-                                      HorizontalAlignment="Right"
-                                      MinWidth="0"
-                                      Margin="0"
-                                      Padding="0"
-                                      OnContent=""
-                                      OffContent="" />
-                    </StackPanel>
-                </Grid>
-            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>

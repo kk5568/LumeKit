@@ -10,9 +10,12 @@ using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
 using Windows.Storage.Streams;
+using BluetoothAudioReceiver.Contracts.Services;
 
 namespace BluetoothAudioReceiver.Services
 {
+    public sealed record CameraDeviceOption(string Id, string Name);
+
     public sealed record CameraSampleMetrics(
         double Brightness,
         double ColorTemp,
@@ -36,11 +39,31 @@ namespace BluetoothAudioReceiver.Services
         private string _lastStatus = "未初始化";
         private string _lastError = string.Empty;
         private int _sampleSeq;
+        private string _preferredCameraDeviceId = string.Empty;
+
+        public CameraReaderService(IAppSettingsService appSettingsService)
+        {
+            _preferredCameraDeviceId = appSettingsService.PreferredCameraDeviceId;
+        }
 
         public string LastStatus => _lastStatus;
         public string LastError => _lastError;
         public bool IsInitialized => _isInitialized;
         public bool AutoOpenAllowed => _autoOpenAllowed;
+        public bool UsedFallbackCamera { get; private set; }
+        public bool DefaultCameraFailed { get; private set; }
+        public string ActiveCameraName { get; private set; } = string.Empty;
+
+        public void SetPreferredCameraDeviceId(string deviceId)
+        {
+            _preferredCameraDeviceId = deviceId?.Trim() ?? string.Empty;
+        }
+
+        public async Task<IReadOnlyList<CameraDeviceOption>> GetCameraDevicesAsync()
+        {
+            var devices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+            return devices.Select(device => new CameraDeviceOption(device.Id, device.Name)).ToArray();
+        }
 
         public void SetAutoOpenAllowed(bool allowed, string source)
         {
@@ -122,6 +145,28 @@ namespace BluetoothAudioReceiver.Services
         private async Task InitializeCoreAsync()
         {
             await DisposeCaptureResourcesAsync();
+            UsedFallbackCamera = false;
+            DefaultCameraFailed = false;
+            ActiveCameraName = string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(_preferredCameraDeviceId))
+            {
+                try
+                {
+                    var selectedDevices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+                    var selectedDevice = selectedDevices.FirstOrDefault(device => device.Id == _preferredCameraDeviceId);
+                    if (selectedDevice is not null)
+                    {
+                        await InitializeDeviceAsync(selectedDevice);
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.Warning(ex, "Preferred camera initialization failed. DeviceId={DeviceId}", _preferredCameraDeviceId);
+                    await DisposeCaptureResourcesAsync();
+                }
+            }
 
             // Path A: default init for unpackaged debug runs.
             try
@@ -136,7 +181,12 @@ namespace BluetoothAudioReceiver.Services
                 };
                 await _mediaCapture.InitializeAsync(defaultSettings);
                 _isInitialized = true;
+                ActiveCameraName = "Windows 默认摄像头";
                 await EnsureFrameReaderReadyAsync(_mediaCapture);
+                if (!_frameReaderReady)
+                {
+                    throw new InvalidOperationException("Windows 默认摄像头的帧读取器启动失败");
+                }
                 _lastStatus = _frameReaderReady ? "默认初始化成功(FrameReader)" : "默认初始化成功(未启动FrameReader)";
                 _lastError = string.Empty;
                 _log.Information("Camera initialized by default path.");
@@ -149,6 +199,7 @@ namespace BluetoothAudioReceiver.Services
                 _frameReaderReady = false;
                 _lastError = FormatException(exDefault);
                 _log.Warning(exDefault, "Camera default initialization failed, fallback to device-id path.");
+                DefaultCameraFailed = true;
             }
 
             // Path B: fallback with explicit device id.
@@ -172,24 +223,23 @@ namespace BluetoothAudioReceiver.Services
                     return;
                 }
 
-                var firstDevice = devices[0];
-                _mediaCapture = CreateMediaCapture();
-                var settings = new MediaCaptureInitializationSettings
+                foreach (var device in devices)
                 {
-                    VideoDeviceId = firstDevice.Id,
-                    StreamingCaptureMode = StreamingCaptureMode.Video,
-                    MemoryPreference = MediaCaptureMemoryPreference.Cpu,
-                    SharingMode = MediaCaptureSharingMode.SharedReadOnly
-                };
+                    try
+                    {
+                        await InitializeDeviceAsync(device);
+                        UsedFallbackCamera = true;
+                        return;
+                    }
+                    catch (Exception exDevice)
+                    {
+                        await DisposeCaptureResourcesAsync();
+                        _log.Warning(exDevice, "Fallback camera initialization failed. Device={DeviceName}", device.Name);
+                    }
+                }
 
-                await _mediaCapture.InitializeAsync(settings);
-                _isInitialized = true;
-                await EnsureFrameReaderReadyAsync(_mediaCapture);
-                _lastStatus = _frameReaderReady
-                    ? $"初始化成功(FrameReader): {firstDevice.Name}"
-                    : $"初始化成功但FrameReader未启动: {firstDevice.Name}";
-                _lastError = string.Empty;
-                _log.Information("Camera initialized successfully, device={DeviceName}", firstDevice.Name);
+                _lastStatus = "初始化失败";
+                _lastError = "所有摄像头均无法初始化";
             }
             catch (Exception ex)
             {
@@ -200,6 +250,32 @@ namespace BluetoothAudioReceiver.Services
                 _lastError = FormatException(ex);
                 _log.Warning(ex, "Camera initialization failed.");
             }
+        }
+
+        private async Task InitializeDeviceAsync(DeviceInformation device)
+        {
+            _mediaCapture = CreateMediaCapture();
+            var settings = new MediaCaptureInitializationSettings
+            {
+                VideoDeviceId = device.Id,
+                StreamingCaptureMode = StreamingCaptureMode.Video,
+                MemoryPreference = MediaCaptureMemoryPreference.Cpu,
+                SharingMode = MediaCaptureSharingMode.SharedReadOnly
+            };
+
+            await _mediaCapture.InitializeAsync(settings);
+            _isInitialized = true;
+            ActiveCameraName = device.Name;
+            await EnsureFrameReaderReadyAsync(_mediaCapture);
+            if (!_frameReaderReady)
+            {
+                throw new InvalidOperationException($"摄像头帧读取器启动失败: {device.Name}");
+            }
+            _lastStatus = _frameReaderReady
+                ? $"初始化成功(FrameReader): {device.Name}"
+                : $"初始化成功但FrameReader未启动: {device.Name}";
+            _lastError = string.Empty;
+            _log.Information("Camera initialized successfully, device={DeviceName}", device.Name);
         }
 
         public async Task ShutdownAsync()

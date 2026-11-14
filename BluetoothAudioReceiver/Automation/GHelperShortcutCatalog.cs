@@ -7,13 +7,17 @@ public sealed record GHelperShortcutOption(string DisplayName, string Hotkey)
 
 public static class GHelperShortcutCatalog
 {
+    public const string QuietModeHotkey = "Ctrl+Shift+Alt+F16";
+    public const string BalancedModeHotkey = "Ctrl+Shift+Alt+F17";
+    public const string EnhancedModeHotkey = "Ctrl+Shift+Alt+F18";
+
     public static IReadOnlyList<GHelperShortcutOption> Options { get; } =
     [
         new("性能模式循环", "Ctrl+Shift+F5"),
         new("性能模式循环（反向）", "Ctrl+Shift+Alt+F5"),
-        new("安静模式", "Ctrl+Shift+Alt+F16"),
-        new("平衡模式", "Ctrl+Shift+Alt+F17"),
-        new("增强模式", "Ctrl+Shift+Alt+F18"),
+        new("安静模式", QuietModeHotkey),
+        new("平衡模式", BalancedModeHotkey),
+        new("增强模式", EnhancedModeHotkey),
         new("自定义模式 1", "Ctrl+Shift+Alt+F19"),
         new("自定义模式 2", "Ctrl+Shift+Alt+F20"),
         new("打开 G-Helper", "Ctrl+Shift+F12"),

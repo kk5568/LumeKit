@@ -21,6 +21,10 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     // 供 NotificationService 判断托盘浮层是否正在显示（对应原来的 TrayQuickPanelWindow.IsPanelVisible）。
     public static bool IsOpen { get; internal set; }
 
+    public event Action? ShowMainWindowRequested;
+    public event Action? RestartRequested;
+    public event Func<Task>? ExitRequested;
+
     private const int CardsPerRow = 1;
     private const double CardHeight = 46;
     private const double CardCornerRadius = 6;
@@ -34,6 +38,7 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     private const double CardNameFontSize = 12.375;
     private const double SectionHeaderFontSize = 12;
     private const double SectionIconFontSize = 14;
+    private const double HostedCardOpacity = 0.70;
 
     private const string InputSectionTitle = "\u8F93\u5165\u8BBE\u5907";   // 输入设备
     private const string OutputSectionTitle = "\u8F93\u51FA\u8BBE\u5907";  // 输出设备
@@ -76,6 +81,7 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     private CardPalette _palette = DarkPalette;
     private string _currentOutputSelectionId = string.Empty;
     private bool _isSwitchingByClick;
+    private bool _isHostedByFloatingWindow;
 
     // 面板打开期间把两段卡片的顺序定住：点卡片刷新只换描边，卡片不再窜位，关掉重开才重排。
     private List<string>? _frozenInputOrder;
@@ -287,6 +293,62 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         _cardMap.Clear();
         SectionsPanel.Children.Add(CreateSection(InputSectionTitle, InputSectionGlyph, inputCards));
         SectionsPanel.Children.Add(CreateSection(OutputSectionTitle, OutputSectionGlyph, outputCards));
+        SectionsPanel.Children.Add(new Border
+        {
+            Height = 1,
+            Margin = new Thickness(0, 2, 0, 0),
+            Background = new SolidColorBrush(_palette.CardStroke)
+        });
+        SectionsPanel.Children.Add(CreateCommandRow());
+    }
+
+    private Grid CreateCommandRow()
+    {
+        var commands = new Grid { ColumnSpacing = 6.4 };
+        for (var index = 0; index < 3; index++)
+        {
+            commands.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+
+        commands.Children.Add(CreateCommandButton("\uE80F", "主界面", () => ShowMainWindowRequested?.Invoke(), 0));
+        commands.Children.Add(CreateCommandButton("\uE777", "重启", () => RestartRequested?.Invoke(), 1));
+        commands.Children.Add(CreateCommandButton("\uE711", "退出", () =>
+        {
+            if (ExitRequested is { } handler)
+            {
+                _ = handler();
+            }
+        }, 2));
+        return commands;
+    }
+
+    private Button CreateCommandButton(string glyph, string tooltip, Action action, int column)
+    {
+        var normalBackground = GetCardFillColor(_palette.CardFill);
+        var button = new Button
+        {
+            Content = new FontIcon
+            {
+                Glyph = glyph,
+                FontFamily = new FontFamily("Segoe Fluent Icons"),
+                FontSize = 14.4
+            },
+            Height = 33.6,
+            MinWidth = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(3.2),
+            CornerRadius = new CornerRadius(CardCornerRadius),
+            Background = new SolidColorBrush(normalBackground),
+            BorderBrush = new SolidColorBrush(_palette.CardStroke),
+            BorderThickness = new Thickness(CardBorderThickness),
+            Shadow = null
+        };
+        button.PointerEntered += (_, _) => button.Background = new SolidColorBrush(
+            GetCardFillColor(_palette.CardHover));
+        button.PointerExited += (_, _) => button.Background = new SolidColorBrush(normalBackground);
+        button.Click += (_, _) => action();
+        Grid.SetColumn(button, column);
+        return button;
     }
 
     private StackPanel CreateSection(string title, string glyph, IReadOnlyList<CardItem> cards)
@@ -353,10 +415,11 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         var card = new Border
         {
             Height = CardHeight,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = new Thickness(0),
             CornerRadius = new CornerRadius(CardCornerRadius),
             BorderThickness = new Thickness(item.IsActive ? CardActiveBorderThickness : CardBorderThickness),
-            Background = new SolidColorBrush(_palette.CardFill),
+            Background = new SolidColorBrush(GetCardFillColor(_palette.CardFill)),
             BorderBrush = new SolidColorBrush(item.IsActive ? AccentColor : _palette.CardStroke)
         };
         _cardMap[card] = item;
@@ -398,8 +461,10 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
         content.Children.Add(name);
 
         card.Child = content;
-        card.PointerEntered += (_, _) => card.Background = new SolidColorBrush(_palette.CardHover);
-        card.PointerExited += (_, _) => card.Background = new SolidColorBrush(_palette.CardFill);
+        card.PointerEntered += (_, _) => card.Background = new SolidColorBrush(
+            GetCardFillColor(_palette.CardHover));
+        card.PointerExited += (_, _) => card.Background = new SolidColorBrush(
+            GetCardFillColor(_palette.CardFill));
 
         // 记住了但这会儿枚举不到的设备：留在原位、降透明度，点了不切（避免去切一个不存在的端点）。
         if (!item.IsAvailable)
@@ -522,10 +587,29 @@ public sealed partial class TrayAudioQuickPanelControl : UserControl
     /// </summary>
     public void PrepareForHost()
     {
+        _isHostedByFloatingWindow = true;
+        SurfaceRoot.Width = double.NaN;
+        SurfaceRoot.HorizontalAlignment = HorizontalAlignment.Stretch;
         SurfaceRoot.Background = null;
+        SurfaceRoot.BorderBrush = null;
         SurfaceRoot.BorderThickness = new Thickness(0);
         SurfaceRoot.CornerRadius = new CornerRadius(0);
+        foreach (var card in _cardMap.Keys)
+        {
+            card.Width = double.NaN;
+            card.HorizontalAlignment = HorizontalAlignment.Stretch;
+            card.Background = new SolidColorBrush(GetCardFillColor(_palette.CardFill));
+        }
     }
+
+    private global::Windows.UI.Color GetCardFillColor(global::Windows.UI.Color color) =>
+        _isHostedByFloatingWindow
+            ? global::Windows.UI.Color.FromArgb(
+                (byte)Math.Round(color.A * HostedCardOpacity),
+                color.R,
+                color.G,
+                color.B)
+            : color;
 
     private void ApplyTheme()
     {

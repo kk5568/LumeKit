@@ -4,4 +4,5 @@ public sealed class AutomationStepDefinition
 {
     public string ActionType { get; set; } = string.Empty;
     public string ParametersJson { get; set; } = "{}";
+    public string? DynamicPerformanceStage { get; set; }
 }

@@ -6,9 +6,18 @@ public const string TriggerForegroundAppChanged = AutomationTriggerCatalog.AppFo
 public const string TriggerProcessStopped = AutomationTriggerCatalog.AppStopped;
 public const string TriggerPerformanceModeEntered = AutomationTriggerCatalog.PerformanceModeEntered;
 public const string TriggerPerformanceModeExited = AutomationTriggerCatalog.PerformanceModeExited;
+public const string TriggerDynamicPerformanceChanged = AutomationTriggerCatalog.DynamicPerformanceChanged;
 public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerChanged;
 
     public const string ConditionPowerState = "power-state";
+    public const string ConditionForegroundProcess = "foreground-process";
+    public const string ConditionWindowTitle = "window-title";
+    public const string ConditionFullscreenApp = "fullscreen-app";
+    public const string ConditionGameRunning = "game-running";
+    public const string ConditionBatteryLevel = "battery-level";
+    public const string ConditionChargingState = "charging-state";
+    public const string ConditionNetworkName = "network-name";
+    public const string ConditionThemeMode = "theme-mode";
     public const string TriggerSystemSignal = "trigger.system.signal";
 
     public const string ActionSendGHelperHotkey = "send-ghelper-hotkey";
@@ -34,6 +43,7 @@ public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerCha
             AutomationTriggerCatalog.AppStopped,
             AutomationTriggerCatalog.PerformanceModeEntered,
             AutomationTriggerCatalog.PerformanceModeExited,
+            AutomationTriggerCatalog.DynamicPerformanceChanged,
             AutomationTriggerCatalog.PowerChanged,
             AutomationTriggerCatalog.BluetoothConnected,
             AutomationTriggerCatalog.OutputDeviceChanged,
@@ -44,7 +54,15 @@ public const string TriggerPowerStateChanged = AutomationTriggerCatalog.PowerCha
     public static IReadOnlySet<string> SupportedConditionTypes { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ConditionPowerState
+            ConditionPowerState,
+            ConditionForegroundProcess,
+            ConditionWindowTitle,
+            ConditionFullscreenApp,
+            ConditionGameRunning,
+            ConditionBatteryLevel,
+            ConditionChargingState,
+            ConditionNetworkName,
+            ConditionThemeMode
         };
 
     public static IReadOnlySet<string> SupportedActionTypes { get; } =

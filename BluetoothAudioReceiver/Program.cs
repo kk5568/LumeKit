@@ -28,14 +28,21 @@ public class Program
 #endif
 
     private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(Program));
-    private static readonly string StartupCrashLogPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "BluetoothAudioReceiver",
-        "startup-crash.log");
-    private static readonly string StartupTraceLogPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "BluetoothAudioReceiver",
-        "startup-trace.log");
+    private static readonly string StartupCrashLogPath = GetStartupDiagnosticPath("startup-crash.log");
+    private static readonly string StartupTraceLogPath = GetStartupDiagnosticPath("startup-trace.log");
+
+    private static string GetStartupDiagnosticPath(string fileName)
+    {
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "portable.flag")))
+        {
+            return Path.Combine(AppContext.BaseDirectory, "data", "Logs", fileName);
+        }
+
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "BluetoothAudioReceiver",
+            fileName);
+    }
 
     /// <summary>
     /// Initializes the process; the entry point of the process.

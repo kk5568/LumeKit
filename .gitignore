@@ -127,3 +127,12 @@ github_pat.txt
 *_pat.txt
 *_token.txt
 
+# Local packaging outputs, verification builds, and diagnostics
+/installer/outpot_port/
+/build/IslandFrameFixVerify/
+/.acl-reports/
+/tmp-shadowtest.ps1
+
+# Local secrets: never publish
+/开发文档/密钥.md
+

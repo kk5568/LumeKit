@@ -1,7 +1,9 @@
 ﻿using System.Collections.ObjectModel;
 using BluetoothAudioReceiver.Contracts.Services;
 using BluetoothAudioReceiver.Models;
+using BluetoothAudioReceiver.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.DependencyInjection;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace BluetoothAudioReceiver.ViewModels.Pages;
@@ -87,6 +89,8 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
     private readonly BrightnessSettings _brightnessSettings;
     private readonly IAppSettingsService _appSettingsService;
     private readonly AutoBrightnessService _autoBrightnessService;
+    private readonly CameraReaderService _cameraReaderService;
+    private string _selectedCameraId = string.Empty;
 
     private bool _brightnessEnabled = true;
     private bool _colorTemperatureEnabled = true;
@@ -101,8 +105,6 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
     private bool _autoBrightnessOnForegroundEnabled;
     private bool _autoBrightnessOnForegroundNotificationEnabled = true;
     private string _selectedForegroundCooldownText = "10分钟";
-    private bool _disableNightLightEnabled = false;
-    private bool _disableNightLightAtNightEnabled = false;
     private string _shortcutStatusText = string.Empty;
 
     public AutoBrightnessPageViewModel(
@@ -113,6 +115,7 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
         _brightnessSettings = brightnessSettings;
         _appSettingsService = appSettingsService;
         _autoBrightnessService = autoBrightnessService;
+        _cameraReaderService = Ioc.Default.GetRequiredService<CameraReaderService>();
 
         LoadFromSettings();
     }
@@ -122,6 +125,21 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
     public ObservableCollection<string> ColorTemperatureMinimumOptions => _colorTemperatureMinimumOptions;
     public ObservableCollection<string> ColorTemperatureMaximumOptions => _colorTemperatureMaximumOptions;
     public ObservableCollection<string> ForegroundCooldownOptions => _foregroundCooldownOptions;
+    public ObservableCollection<CameraDeviceOption> CameraOptions { get; } = new();
+
+    public string SelectedCameraId
+    {
+        get => _selectedCameraId;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (SetProperty(ref _selectedCameraId, normalized))
+            {
+                _appSettingsService.SetPreferredCameraDeviceIdAsync(normalized).Forget(nameof(AutoBrightnessPageViewModel));
+                _cameraReaderService.SetPreferredCameraDeviceId(normalized);
+            }
+        }
+    }
 
     public bool BrightnessEnabled
     {
@@ -243,32 +261,6 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
         }
     }
 
-    public bool DisableNightLightEnabled
-    {
-        get => _disableNightLightEnabled;
-        set
-        {
-            if (SetProperty(ref _disableNightLightEnabled, value))
-            {
-                _appSettingsService.SetDisableNightLightEnabledAsync(value).Forget(nameof(AutoBrightnessPageViewModel));
-                _autoBrightnessService.UpdateNightLightState();
-            }
-        }
-    }
-
-    public bool DisableNightLightAtNightEnabled
-    {
-        get => _disableNightLightAtNightEnabled;
-        set
-        {
-            if (SetProperty(ref _disableNightLightAtNightEnabled, value))
-            {
-                _appSettingsService.SetDisableNightLightAtNightEnabledAsync(value).Forget(nameof(AutoBrightnessPageViewModel));
-                _autoBrightnessService.UpdateNightLightState();
-            }
-        }
-    }
-
     public bool AutoBrightnessOnForegroundEnabled
     {
         get => _autoBrightnessOnForegroundEnabled;
@@ -326,7 +318,27 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
     public Task OnNavigatedToAsync(object parameter)
     {
         LoadFromSettings();
+        _ = LoadCameraOptionsAsync();
         return Task.CompletedTask;
+    }
+
+    private async Task LoadCameraOptionsAsync()
+    {
+        try
+        {
+            var devices = await _cameraReaderService.GetCameraDevicesAsync();
+            CameraOptions.Clear();
+            CameraOptions.Add(new CameraDeviceOption(string.Empty, "Windows 默认摄像头"));
+            foreach (var device in devices)
+            {
+                CameraOptions.Add(device);
+            }
+        }
+        catch
+        {
+            CameraOptions.Clear();
+            CameraOptions.Add(new CameraDeviceOption(string.Empty, "Windows 默认摄像头"));
+        }
     }
 
     public Task OnNavigatedFromAsync()
@@ -350,8 +362,7 @@ public partial class AutoBrightnessPageViewModel : ObservableRecipient, INavigat
         _autoBrightnessOnForegroundEnabled = _appSettingsService.AutoBrightnessOnForegroundEnabled;
         _autoBrightnessOnForegroundNotificationEnabled = _appSettingsService.AutoBrightnessOnForegroundNotificationEnabled;
         _selectedForegroundCooldownText = FormatForegroundCooldown(_appSettingsService.AutoBrightnessOnForegroundCooldownMinutes);
-        _disableNightLightEnabled = _appSettingsService.DisableNightLightEnabled;
-        _disableNightLightAtNightEnabled = _appSettingsService.DisableNightLightAtNightEnabled;
+        _selectedCameraId = _appSettingsService.PreferredCameraDeviceId;
     }
 
     private static int ParseForegroundCooldownMinutes(string value)

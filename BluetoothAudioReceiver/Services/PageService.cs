@@ -28,6 +28,7 @@ internal class PageService : IPageService
         Configure<AutoBrightnessPageViewModel, AutoBrightnessPage>();
         Configure<BackgroundEfficiencyPageViewModel, BackgroundEfficiencyPage>();
         Configure<NotificationPageViewModel, NotificationPage>();
+        Configure<IslandPageViewModel, IslandPage>();
         Configure<HotkeyNotificationPageViewModel, HotkeyNotificationPage>();
         // TODO: Add pages here
 

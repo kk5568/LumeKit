@@ -3,6 +3,7 @@ using BluetoothAudioReceiver.Automation;
 using BluetoothAudioReceiver.Automation.Models;
 using BluetoothAudioReceiver.Contracts.Services;
 using Serilog;
+using Windows.System.Power;
 
 namespace BluetoothAudioReceiver.Services;
 
@@ -107,7 +108,10 @@ internal sealed class AutomationGameModeDecisionService
                 var configuration = PerformanceConfiguration.FromKey(item.Key);
                 var activeId = item.Value.ActiveProcessId;
                 item.Value.ClearActive();
-                PublishPerformanceEvent(AutomationTriggerCatalog.PerformanceModeExited, processName, activeId, occurredAt, configuration);
+                if (!configuration.IsDynamic)
+                {
+                    PublishPerformanceEvent(AutomationTriggerCatalog.PerformanceModeExited, processName, activeId, occurredAt, configuration);
+                }
             }
         }
     }
@@ -146,6 +150,15 @@ internal sealed class AutomationGameModeDecisionService
                              (state.ActiveProcessId != processId || !meetsEnter);
             if (!shouldExit)
             {
+                if (gpu is float currentGpu)
+                {
+                    var stage = ResolveStage(currentGpu, IsOnBattery(), state.ActiveStage);
+                    if (!string.Equals(stage, state.ActiveStage, StringComparison.OrdinalIgnoreCase))
+                    {
+                        state.ActiveStage = stage;
+                        PublishPerformanceEvent(configuration.IsDynamic ? AutomationTriggerCatalog.DynamicPerformanceChanged : AutomationTriggerCatalog.PerformanceModeEntered, state.ActiveProcessName, state.ActiveProcessId, now, configuration, stage, IsOnBattery());
+                    }
+                }
                 state.ExitSince = null;
                 state.ClearCandidate();
                 return;
@@ -198,8 +211,9 @@ internal sealed class AutomationGameModeDecisionService
         {
             state.ActiveProcessName = processName;
             state.ActiveProcessId = processId;
+            state.ActiveStage = ResolveStage(gpu ?? 0, IsOnBattery(), null);
             state.ClearCandidate();
-            PublishPerformanceEvent(AutomationTriggerCatalog.PerformanceModeEntered, processName, processId, now, configuration);
+            PublishPerformanceEvent(configuration.IsDynamic ? AutomationTriggerCatalog.DynamicPerformanceChanged : AutomationTriggerCatalog.PerformanceModeEntered, processName, processId, now, configuration, state.ActiveStage, IsOnBattery());
         }
     }
 
@@ -209,7 +223,9 @@ internal sealed class AutomationGameModeDecisionService
             .Select(item => AutomationTriggerCatalog.Normalize(item.Trigger.TriggerType) switch
             {
                 AutomationTriggerCatalog.PerformanceModeEntered or AutomationTriggerCatalog.PerformanceModeExited
-                    => PerformanceConfiguration.FromParameters(item.Trigger.Parameters),
+                    => PerformanceConfiguration.FromParameters(item.Trigger.Parameters, false),
+                AutomationTriggerCatalog.DynamicPerformanceChanged
+                    => PerformanceConfiguration.FromParameters(item.Trigger.Parameters, true),
                 _ => null
             })
             .OfType<PerformanceConfiguration>()
@@ -222,7 +238,9 @@ internal sealed class AutomationGameModeDecisionService
         string? processName,
         int? processId,
         DateTimeOffset occurredAt,
-        PerformanceConfiguration configuration)
+        PerformanceConfiguration configuration,
+        string? stage = null,
+        bool? onBattery = null)
     {
         var correlationId = Guid.NewGuid();
         _log.Information(
@@ -236,14 +254,41 @@ internal sealed class AutomationGameModeDecisionService
             occurredAt,
             new Dictionary<string, string?>
             {
-                ["state"] = triggerType == AutomationTriggerCatalog.PerformanceModeEntered ? "entered" : "exited",
+                ["state"] = triggerType == AutomationTriggerCatalog.PerformanceModeEntered ? "entered" : triggerType == AutomationTriggerCatalog.DynamicPerformanceChanged ? "changed" : "exited",
                 ["processName"] = processName,
                 ["processId"] = processId?.ToString(),
                 ["windowMode"] = configuration.WindowMode,
                 ["gpuComparison"] = configuration.GpuComparison,
                 ["gpuThreshold"] = configuration.EnterThreshold.ToString("0")
+                , ["stage"] = stage
+                , ["powerSource"] = onBattery == true ? "battery" : "ac"
             },
             correlationId));
+    }
+
+    private static bool IsOnBattery()
+        => PowerManager.PowerSupplyStatus == PowerSupplyStatus.NotPresent;
+
+    private static string ResolveStage(float gpu, bool onBattery, string? previousStage)
+    {
+        if (onBattery)
+        {
+            return previousStage switch
+            {
+                "high" when gpu >= 65 => "high",
+                "balanced" when gpu >= 25 => gpu >= 80 ? "high" : "balanced",
+                "quiet" when gpu < 40 => "quiet",
+                _ => gpu >= 80 ? "high" : gpu >= 40 ? "balanced" : "quiet"
+            };
+        }
+
+        return previousStage switch
+        {
+            "high" when gpu >= 55 => "high",
+            "balanced" when gpu >= 35 => gpu >= 70 ? "high" : "balanced",
+            "quiet" when gpu < 45 => "quiet",
+            _ => gpu >= 70 ? "high" : gpu >= 45 ? "balanced" : "quiet"
+        };
     }
 
     private static bool MatchesWindow(string mode, bool fullscreen)
@@ -292,6 +337,7 @@ internal sealed class AutomationGameModeDecisionService
         public int CandidateSamples { get; set; }
         public int CandidateHits { get; set; }
         public DateTimeOffset? ExitSince { get; set; }
+        public string? ActiveStage { get; set; }
 
         public void ClearCandidate()
         {
@@ -306,6 +352,7 @@ internal sealed class AutomationGameModeDecisionService
         {
             ActiveProcessName = null;
             ActiveProcessId = null;
+            ActiveStage = null;
             ExitSince = null;
             ClearCandidate();
         }
@@ -316,9 +363,10 @@ internal sealed class AutomationGameModeDecisionService
         string WindowMode,
         string GpuComparison,
         float EnterThreshold,
-        float ExitThreshold)
+        float ExitThreshold,
+        bool IsDynamic)
     {
-        public static PerformanceConfiguration FromParameters(IReadOnlyDictionary<string, string> parameters)
+        public static PerformanceConfiguration FromParameters(IReadOnlyDictionary<string, string> parameters, bool isDynamic)
         {
             var windowMode = parameters.TryGetValue("windowMode", out var mode) &&
                              string.Equals(mode, "windowed", StringComparison.OrdinalIgnoreCase)
@@ -330,20 +378,23 @@ internal sealed class AutomationGameModeDecisionService
                 : "greater-than";
             var threshold = ParseThreshold(parameters.TryGetValue("gpuThreshold", out var raw) ? raw : null, 60f);
             return new PerformanceConfiguration(
-                $"{windowMode}:{comparison}:{threshold:0}",
+                $"{(isDynamic ? "dynamic" : "legacy")}:{windowMode}:{comparison}:{threshold:0}",
                 windowMode,
                 comparison,
                 threshold,
-                Math.Min(20f, threshold));
+                Math.Min(20f, threshold),
+                isDynamic);
         }
 
         public static PerformanceConfiguration FromKey(string key)
         {
-            var parts = key.Split(':', 3);
-            var windowMode = parts.Length > 0 && parts[0] == "windowed" ? "windowed" : "fullscreen";
-            var comparison = parts.Length > 1 && parts[1] == "less-than" ? "less-than" : "greater-than";
-            var threshold = parts.Length > 2 && float.TryParse(parts[2], out var parsed) ? parsed : 60f;
-            return new PerformanceConfiguration(key, windowMode, comparison, threshold, Math.Min(20f, threshold));
+            var parts = key.Split(':', 4);
+            var isDynamic = parts.Length > 0 && parts[0] == "dynamic";
+            var offset = isDynamic || (parts.Length > 0 && parts[0] == "legacy") ? 1 : 0;
+            var windowMode = parts.Length > offset && parts[offset] == "windowed" ? "windowed" : "fullscreen";
+            var comparison = parts.Length > offset + 1 && parts[offset + 1] == "less-than" ? "less-than" : "greater-than";
+            var threshold = parts.Length > offset + 2 && float.TryParse(parts[offset + 2], out var parsed) ? parsed : 60f;
+            return new PerformanceConfiguration(key, windowMode, comparison, threshold, Math.Min(20f, threshold), isDynamic);
         }
 
         private static float ParseThreshold(string? value, float fallback)

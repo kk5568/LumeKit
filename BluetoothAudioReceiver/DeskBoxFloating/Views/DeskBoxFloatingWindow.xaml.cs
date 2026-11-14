@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Serilog;
 using Windows.Graphics;
 using WinUIEx;
 
@@ -17,6 +18,8 @@ namespace BluetoothAudioReceiver.DeskBoxFloating.Views;
 
 public sealed partial class DeskBoxFloatingWindow : WindowEx
 {
+    private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(DeskBoxFloatingWindow));
+
     // 定位时窗口底边离工作区下沿（任务栏顶）的距离。原来的 18 太窄，
     // DWM 的系统阴影会下探到任务栏上；留出 36 让阴影落在空档里。阴影本身没变。
     private const int WindowBottomMargin = 36;
@@ -40,8 +43,19 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
     private int _windowHeight = 54;
     private int _hideRevision;
     private DeskBoxFloatingLayoutProfile _profile = DeskBoxFloatingProfiles.NotificationDefault;
+    private bool _islandPreviewActive;
+    private string _activeMaterialType = Models.AppSettings.Current.TrayMaterialType;
     private readonly WidgetTrayAnimationController _trayAnimation;
     private bool _isHideAnimationRunning;
+    private DateTimeOffset _islandSizeAnimationStartedAt;
+    private SizeInt32 _islandSizeAnimationStartSize;
+    private SizeInt32 _islandSizeAnimationTargetSize;
+    private PointInt32 _islandSizeAnimationStartPosition;
+    private double _islandSizeAnimationStartProgress;
+    private double _islandSizeAnimationTargetProgress;
+    private double _islandSizeAnimationCurrentProgress;
+    private Action<double, bool>? _islandSizeAnimationProgressChanged;
+    private bool _islandSizeAnimationFrameSubscribed;
 
     // 动画每帧提交位置后会回调，用这三项判断「在任务栏区域里不置顶、越过任务栏后才置顶」。
     private int _taskbarTopY;
@@ -76,7 +90,6 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         ApplyMaterial();
         _defaultContentPadding = ContentTransitionViewport.Padding;
         _hideTimer.Tick += OnHideTimerTick;
-
         // 托盘左键面板这类常驻浮层要点外部关闭；通知有自己的自动关闭，不用这个。
         _outsideClickTimer = DispatcherQueue.CreateTimer();
         _outsideClickTimer.Interval = TimeSpan.FromMilliseconds(30);
@@ -85,6 +98,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
 
         Closed += (_, _) =>
         {
+            StopIslandSizeAnimation();
             DisposeBackdropControllers();
             _trayAnimation.Dispose();
         };
@@ -102,11 +116,26 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         DescriptionText.Visibility = string.IsNullOrWhiteSpace(request.Description)
             ? Visibility.Collapsed
             : Visibility.Visible;
-        _profile = DeskBoxFloatingProfiles.Resolve(request.ProfileId, request.Kind);
+        _islandPreviewActive = request.IsIslandPreview;
+        _activeMaterialType = request.MaterialTypeOverride ?? Models.AppSettings.Current.TrayMaterialType;
+        if (_islandPreviewActive)
+        {
+            StopIslandSizeAnimation();
+            _islandSizeAnimationCurrentProgress = 0;
+            _islandSizeAnimationTargetProgress = 0;
+        }
+        _profile = DeskBoxFloatingProfiles.Resolve(
+            request.IsIslandPreview ? DeskBoxFloatingProfiles.NotificationDefault.Id : request.ProfileId,
+            request.Kind);
         TitleBarGrid.Padding = _profile.Padding;
         TitleBarGrid.ColumnSpacing = _profile.ContentSpacing;
         ShellContentPresenter.RowSpacing = _profile.ContentSpacing / 2;
-        IconGlyph.FontSize = _profile.IconSize / 2;
+        // 灵动岛使用自绘内容时没有图标，配置中的 0 只表示“隐藏图标”，
+        // 不能把它直接传给 WinUI 的 FontSize（FontSize 必须大于 0）。
+        if (_profile.IconSize > 0)
+        {
+            IconGlyph.FontSize = _profile.IconSize / 2;
+        }
         UpdateItems(request, _profile);
 
         // 自绘内容：整块塞进内容宿主，窗口自己的标题行收掉（内容自己带标题）。
@@ -137,7 +166,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         }
 
         (_windowWidth, _windowHeight) = ResolveWindowSize(request, _profile);
-        if (content is not null)
+        if (content is not null && !_islandPreviewActive)
         {
             // 窗口宽度跟着内容自己的 DIP 宽度走，再按档位夹住。
             _windowWidth = Math.Clamp(
@@ -146,7 +175,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
                 _profile.MaxWidth);
         }
 
-        if (unifiedLayout || hasCustomContent)
+        if ((unifiedLayout || hasCustomContent) && !_islandPreviewActive)
         {
             _windowHeight = MeasureFittedHeight();
         }
@@ -158,14 +187,19 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         // DeskBox QuickCaptureWidgetWindow.RevealFromTray 的顺序：
         // 先 cloak + 摆到动画起点，再显示窗口，避免首帧闪一下。定位也在这一步里做，
         // 保证定位是最后一次挪窗口（抬升动画的落点是 PrepareVisualState 当场读的窗口矩形）。
-        PrepareTrayShowAnimation(request.PlacementOverride ?? _profile.Placement, request.AnchorPoint);
+        PrepareTrayShowAnimation(request.PlacementOverride ?? _profile.Placement, request.AnchorPoint, request.IsIslandPreview);
 
-        if (!Visible)
+        bool activateWindow = request.ActivateOnShowOverride ?? true;
+        if (!Visible && activateWindow)
         {
             Activate();
         }
+        else if (!Visible)
+        {
+            AppWindow.Show();
+        }
 
-        if (hasCustomContent && content is not null)
+        if (hasCustomContent && content is not null && activateWindow)
         {
             // 让 Esc 能用：焦点落进自绘内容，窗口级键盘快捷键才会命中。
             try { content.Focus(FocusState.Programmatic); } catch { }
@@ -211,6 +245,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
     public void DismissNow()
     {
         _hideTimer.Stop();
+        StopIslandSizeAnimation();
         _outsideClickTimer.Stop();
         _dismissOnOutsideClick = false;
 
@@ -241,7 +276,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
             _trayAnimation.Stop();
         }
 
-        if (!GetTrayAnimationProfile().IsEnabled)
+        if (!GetTrayAnimationProfile(_islandPreviewActive).IsEnabled)
         {
             CompleteTrayHideAnimation(revision);
             return;
@@ -262,6 +297,95 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         PlayTrayHideAnimation(revision);
     }
 
+    /// <summary>
+    /// Keeps the top-center anchor fixed while interpolating the native window bounds.
+    /// This is used only by the interactive Super Island prototype.
+    /// </summary>
+    public void AnimateIslandSize(
+        int targetWidth,
+        int targetHeight,
+        double targetProgress,
+        Action<double, bool> progressChanged)
+    {
+        if (!Visible)
+        {
+            return;
+        }
+
+        StopIslandSizeAnimation();
+        _islandSizeAnimationStartSize = AppWindow.Size;
+        _islandSizeAnimationTargetSize = new SizeInt32(
+            Math.Max(1, targetWidth),
+            Math.Max(1, targetHeight));
+        _islandSizeAnimationStartPosition = AppWindow.Position;
+        _islandSizeAnimationStartProgress = _islandSizeAnimationCurrentProgress;
+        _islandSizeAnimationTargetProgress = Math.Clamp(targetProgress, 0, 1);
+        _islandSizeAnimationProgressChanged = progressChanged;
+        _islandSizeAnimationStartedAt = DateTimeOffset.UtcNow;
+        _islandSizeAnimationProgressChanged(_islandSizeAnimationStartProgress, false);
+        CompositionTarget.Rendering += OnIslandSizeAnimationFrame;
+        _islandSizeAnimationFrameSubscribed = true;
+    }
+
+    private void OnIslandSizeAnimationFrame(object? sender, object args)
+    {
+        const double durationMilliseconds = 300;
+        double progress = Math.Clamp(
+            (DateTimeOffset.UtcNow - _islandSizeAnimationStartedAt).TotalMilliseconds / durationMilliseconds,
+            0,
+            1);
+        double easedProgress = 1 - Math.Pow(1 - progress, 3);
+        int width = LerpDimension(_islandSizeAnimationStartSize.Width, _islandSizeAnimationTargetSize.Width, easedProgress);
+        int height = LerpDimension(_islandSizeAnimationStartSize.Height, _islandSizeAnimationTargetSize.Height, easedProgress);
+        int centerX = _islandSizeAnimationStartPosition.X + _islandSizeAnimationStartSize.Width / 2;
+        double islandProgress = Lerp(
+            _islandSizeAnimationStartProgress,
+            _islandSizeAnimationTargetProgress,
+            easedProgress);
+
+        int x = centerX - width / 2;
+        int y = _islandSizeAnimationStartPosition.Y;
+        IntPtr handle = this.GetWindowHandle();
+        if (handle != IntPtr.Zero
+            && !Win32Helper.SetWindowPos(
+                handle,
+                IntPtr.Zero,
+                x,
+                y,
+                width,
+                height,
+                Win32Helper.SWP_NOZORDER | Win32Helper.SWP_NOACTIVATE))
+        {
+            LogTrayWindow($"Island resize failed: {Marshal.GetLastPInvokeError()}");
+        }
+        _windowWidth = width;
+        _windowHeight = height;
+        _islandSizeAnimationCurrentProgress = islandProgress;
+        _islandSizeAnimationProgressChanged?.Invoke(islandProgress, progress >= 1);
+
+        if (progress >= 1)
+        {
+            StopIslandSizeAnimation();
+        }
+    }
+
+    private void StopIslandSizeAnimation()
+    {
+        if (_islandSizeAnimationFrameSubscribed)
+        {
+            CompositionTarget.Rendering -= OnIslandSizeAnimationFrame;
+            _islandSizeAnimationFrameSubscribed = false;
+        }
+
+        _islandSizeAnimationProgressChanged = null;
+    }
+
+    private static int LerpDimension(int from, int to, double progress) =>
+        (int)Math.Round(from + (to - from) * progress);
+
+    private static double Lerp(double from, double to, double progress) =>
+        from + ((to - from) * progress);
+
     private void PlayTrayHideAnimation(int revision)
     {
         if (!_isHideAnimationRunning)
@@ -269,7 +393,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
             return;
         }
 
-        var profile = GetTrayAnimationProfile();
+        var profile = GetTrayAnimationProfile(_islandPreviewActive);
         _trayAnimation.Animate(
             0,
             0,
@@ -305,7 +429,10 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         Dismissed?.Invoke(this, EventArgs.Empty);
     }
 
-    private void PrepareTrayShowAnimation(DeskBoxFloatingPlacement placement, PointInt32? anchorPoint)
+    private void PrepareTrayShowAnimation(
+        DeskBoxFloatingPlacement placement,
+        PointInt32? anchorPoint,
+        bool islandPreview)
     {
         // 先清掉上一次动画留下的复位点，再定位。抬升动画的落点是 PrepareVisualState 当场
         // 读到的窗口矩形，所以定位必须是最后一次挪窗口；否则新窗口首秀时读到的是窗口默认
@@ -326,8 +453,10 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
             () =>
             {
                 _trayAnimation.CloakWindowForTrayShow();
-                _trayAnimation.SetOffsetOverride(null, ResolveTraySlideOffsetY());
-                var profile = GetTrayAnimationProfile();
+                _trayAnimation.SetOffsetOverride(
+                    null,
+                    islandPreview ? ResolveIslandSlideOffsetY() : ResolveTraySlideOffsetY());
+                var profile = GetTrayAnimationProfile(islandPreview);
                 _trayAnimation.PrepareVisualState(
                     profile.ShowOffsetX,
                     profile.ShowOffsetY,
@@ -353,7 +482,7 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
             return;
         }
 
-        var profile = GetTrayAnimationProfile();
+        var profile = GetTrayAnimationProfile(_islandPreviewActive);
         if (!profile.IsEnabled)
         {
             CompleteTrayShowWithoutAnimation();
@@ -400,8 +529,28 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
             ex => LogTrayWindow($"CompleteShowWithoutAnimation cleanup failed: {ex.Message}"));
     }
 
-    private WidgetTrayAnimationProfile GetTrayAnimationProfile() =>
-        _trayAnimation.CreateProfile(WidgetAnimationSettings.From(AppSettings.Current));
+    private WidgetTrayAnimationProfile GetTrayAnimationProfile(bool islandPreview = false)
+    {
+        if (islandPreview)
+        {
+            double offset = ResolveIslandSlideOffsetY();
+            return new WidgetTrayAnimationProfile(
+                0,
+                -offset,
+                0,
+                -offset,
+                WidgetTrayAnimationController.RestingOpacity,
+                WidgetTrayAnimationController.RestingOpacity,
+                WidgetTrayAnimationController.RestingScale,
+                WidgetTrayAnimationController.RestingScale,
+                AppSettings.Current.TrayShowDurationMs,
+                true);
+        }
+
+        return _trayAnimation.CreateProfile(WidgetAnimationSettings.From(AppSettings.Current));
+    }
+
+    private double ResolveIslandSlideOffsetY() => _windowHeight + 16;
 
     private Windows.Foundation.Rect GetCurrentAnimationBounds()
     {
@@ -442,7 +591,10 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         IntPtr handle = this.GetWindowHandle();
         double scale = Win32Helper.GetDpiScaleForWindow(handle, RootContainer.XamlRoot);
         ContentBlock.Measure(new Windows.Foundation.Size(_windowWidth / scale, double.PositiveInfinity));
-        int fitted = (int)Math.Ceiling(ContentBlock.DesiredSize.Height * scale) + WindowContentBottomGutter;
+        int bottomGutter = string.Equals(_profile.Id, "Tray.QuickPanel", StringComparison.OrdinalIgnoreCase)
+            ? 0
+            : WindowContentBottomGutter;
+        int fitted = (int)Math.Ceiling(ContentBlock.DesiredSize.Height * scale) + bottomGutter;
 
         int floor = _profile.Height;
         int ceiling = Math.Max(floor, _profile.MaxHeight);
@@ -592,6 +744,11 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
             DeskBoxFloatingPlacement.ScreenCenter => new PointInt32(
                 workArea.X + (workArea.Width - _windowWidth) / 2,
                 workArea.Y + (workArea.Height - _windowHeight) / 2),
+            DeskBoxFloatingPlacement.TopCenter when _islandPreviewActive =>
+                ResolveIslandPoint(workArea),
+            DeskBoxFloatingPlacement.TopCenter => new PointInt32(
+                workArea.X + (workArea.Width - _windowWidth) / 2,
+                workArea.Y),
             _ => new PointInt32(
                 workArea.X + (workArea.Width - _windowWidth) / 2,
                 workArea.Y + workArea.Height - _windowHeight - WindowBottomMargin)
@@ -602,6 +759,19 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
         // AppWindow.Move 对刚创建、还没落定的窗口会有延迟；这里用动画提交时的同一套 flags
         // 直接再落一次 HWND 矩形，保证随后的 PrepareVisualState 读到正确位置。
         CommitWindowPosition(target);
+    }
+
+    private PointInt32 ResolveIslandPoint(RectInt32 workArea)
+    {
+        int x = AppSettings.Current.IslandHorizontalPosition switch
+        {
+            "Left" => workArea.X + ScreenEdgeMargin,
+            "Right" => workArea.X + workArea.Width - _windowWidth - ScreenEdgeMargin,
+            "Custom" => workArea.X + (workArea.Width - _windowWidth) / 2 + AppSettings.Current.IslandHorizontalOffset,
+            _ => workArea.X + (workArea.Width - _windowWidth) / 2
+        };
+
+        return new PointInt32(x, workArea.Y + AppSettings.Current.IslandTopMargin);
     }
 
     /// <summary>
@@ -802,6 +972,13 @@ public sealed partial class DeskBoxFloatingWindow : WindowEx
     {
         int width = request.WidthOverride ?? profile.Width;
         int height = request.HeightOverride ?? profile.Height;
+        if (request.IsIslandPreview)
+        {
+            return (
+                Math.Clamp(width, 1, 1200),
+                Math.Clamp(height, 1, 1200));
+        }
+
         return (
             Math.Clamp(width, profile.MinWidth, profile.MaxWidth),
             Math.Clamp(height, profile.MinHeight, profile.MaxHeight));

@@ -133,8 +133,10 @@ public sealed class ThemeTestTimerService : IDisposable
     {
         try
         {
-            ApplySystemTheme(theme);
-            await BroadcastThemeChangeAsync();
+            if (ApplySystemTheme(theme))
+            {
+                await BroadcastThemeChangeAsync();
+            }
 
             lock (_syncRoot)
             {
@@ -162,8 +164,10 @@ public sealed class ThemeTestTimerService : IDisposable
     {
         try
         {
-            ApplySystemTheme(theme);
-            await BroadcastThemeChangeAsync();
+            if (ApplySystemTheme(theme))
+            {
+                await BroadcastThemeChangeAsync();
+            }
 
             lock (_syncRoot)
             {
@@ -186,8 +190,13 @@ public sealed class ThemeTestTimerService : IDisposable
         RaiseStateChanged();
     }
 
-    private static void ApplySystemTheme(ElementTheme theme)
+    private static bool ApplySystemTheme(ElementTheme theme)
     {
+        if (GetCurrentTheme() == theme)
+        {
+            return false;
+        }
+
         var value = theme == ElementTheme.Dark ? 0 : 1;
 
         try
@@ -195,14 +204,16 @@ public sealed class ThemeTestTimerService : IDisposable
             using var key = Registry.CurrentUser.OpenSubKey(PersonalizeRegistryPath, writable: true);
             if (key is null)
             {
-                return;
+                return false;
             }
 
             key.SetValue(AppsUseLightThemeValueName, value, RegistryValueKind.DWord);
             key.SetValue(SystemUsesLightThemeValueName, value, RegistryValueKind.DWord);
+            return true;
         }
         catch
         {
+            return false;
         }
     }
 
@@ -226,8 +237,7 @@ public sealed class ThemeTestTimerService : IDisposable
     private static async Task BroadcastThemeChangeAsync()
     {
         BroadcastThemeChangeOnce();
-        await Task.Delay(155);
-        BroadcastThemeChangeOnce();
+        await Task.CompletedTask;
     }
 
     private static void BroadcastThemeChangeOnce()

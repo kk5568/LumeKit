@@ -46,13 +46,16 @@
     <EnableMsixTooling>true</EnableMsixTooling>
     <LangVersion>preview</LangVersion>
     <SelfContained Condition="'$(Configuration)' == 'Debug'">false</SelfContained>
+    <DebugSymbols Condition="'$(Configuration)' == 'Debug'">true</DebugSymbols>
+    <DebugType Condition="'$(Configuration)' == 'Debug'">portable</DebugType>
+    <Optimize Condition="'$(Configuration)' == 'Debug'">false</Optimize>
     <!-- Custom Settings -->
     <DefineConstants>DISABLE_XAML_GENERATED_MAIN;$(DefineConstants)</DefineConstants><!-- Custom Program -->
     <DefineConstants Condition="'$(Configuration)'=='Release'">SINGLE_INSTANCE;$(DefineConstants)</DefineConstants><!-- Single Instance -->
     <DefineConstants>TRAY_ICON;$(DefineConstants)</DefineConstants><!-- Tray Icon -->
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(BuildingInsideVisualStudio)'!='True'">
+  <PropertyGroup Condition="'$(BuildingInsideVisualStudio)'!='True' and '$(Configuration)'=='Release'">
     <PublishProfile>Properties\PublishProfiles\win-$(Platform).pubxml</PublishProfile>
   </PropertyGroup>
 

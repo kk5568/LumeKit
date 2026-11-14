@@ -18,11 +18,16 @@ public sealed class AutoDayNightService : IDisposable
     private readonly SolarCalculator _solarCalculator;
     private readonly TaskSchedulerManager _taskSchedulerManager;
     private readonly ThemeManager _themeManager;
+    private readonly NightLightStateService _nightLightStateService;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private CancellationTokenSource? _cts;
+    private Timer? _nightLightPollTimer;
+    private readonly object _pollSync = new();
+    private volatile bool _observationPaused;
     private bool _started;
     private bool _hasShownMissingTaskNotification;
+    private bool? _nightLightActive;
 
     private bool _taskSchedulerCreated;
     private TimeSpan? _scheduledSunrise;
@@ -54,6 +59,8 @@ public sealed class AutoDayNightService : IDisposable
 
     public string TaskSchedulerStatusText => _taskSchedulerStatusText;
 
+    public string NightLightStateText => _nightLightActive is null ? "未读取" : _nightLightActive.Value ? "开启" : "关闭";
+
     public AutoDayNightService(
         IAppSettingsService appSettingsService,
         IAutomationTriggerBus triggerBus,
@@ -61,7 +68,8 @@ public sealed class AutoDayNightService : IDisposable
         INotificationService notificationService,
         SolarCalculator solarCalculator,
         TaskSchedulerManager taskSchedulerManager,
-        ThemeManager themeManager)
+        ThemeManager themeManager,
+        NightLightStateService nightLightStateService)
     {
         _appSettingsService = appSettingsService;
         _triggerBus = triggerBus;
@@ -70,6 +78,7 @@ public sealed class AutoDayNightService : IDisposable
         _solarCalculator = solarCalculator;
         _taskSchedulerManager = taskSchedulerManager;
         _themeManager = themeManager;
+        _nightLightStateService = nightLightStateService;
         _triggerBus.TriggerPublished += OnTriggerPublished;
     }
 
@@ -96,6 +105,7 @@ public sealed class AutoDayNightService : IDisposable
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
+        StopNightLightPolling();
         await _taskSchedulerManager.RemoveThemeTasksAsync();
         _hasShownMissingTaskNotification = false;
         SetState(false, null, null, null, null, "未修正", "未创建");
@@ -109,20 +119,45 @@ public sealed class AutoDayNightService : IDisposable
         {
             if (!_appSettingsService.AutoDayNightEnabled)
             {
+                StopNightLightPolling();
                 await _taskSchedulerManager.RemoveThemeTasksAsync();
                 SetState(false, null, null, null, null, "未修正", "未启用");
                 return;
             }
 
-            if (!_appSettingsService.AutoDayNightUseSystemLocation)
+            if (_appSettingsService.AutoDayNightUseNightLight)
             {
-                _log.Information("Auto day/night skipped: system location disabled");
+                if (_observationPaused) return;
                 await _taskSchedulerManager.RemoveThemeTasksAsync();
-                SetState(false, null, null, null, null, "未修正", "系统定位未开启");
+                StartNightLightPolling();
+                await ApplyNightLightStateAsync();
+                SetState(false, null, null, null, null, _correctionStatus, "不需要计划任务（Night light 状态监听）");
                 return;
             }
 
-            var location = await _solarCalculator.ResolveSystemLocationAsync(token);
+            StopNightLightPolling();
+
+            if (_appSettingsService.AutoDayNightUseCustomNightSchedule)
+            {
+                if (!TryGetCustomSchedule(out var lightTime, out var darkTime))
+                {
+                    await _taskSchedulerManager.RemoveThemeTasksAsync();
+                    SetState(false, null, null, null, null, "未修正", "自定义时间未设置或无效");
+                    return;
+                }
+
+                await ApplyScheduleAsync(lightTime, darkTime, token);
+                return;
+            }
+
+            var location = await ResolveConfiguredLocationAsync(token);
+            if (_appSettingsService.AutoDayNightUseCity && location is null)
+            {
+                await _taskSchedulerManager.RemoveThemeTasksAsync();
+                SetState(false, null, null, null, null, "未修正", "未找到城市");
+                return;
+            }
+
             var resolvedSunTimes = await _solarCalculator.ResolveBestSunTimesAsync(location, token);
             if (resolvedSunTimes is null)
             {
@@ -134,15 +169,7 @@ public sealed class AutoDayNightService : IDisposable
                 return;
             }
 
-            _calculatedSunrise = resolvedSunTimes.Sunrise;
-            _calculatedSunset = resolvedSunTimes.Sunset;
-            await CorrectThemeAsync(resolvedSunTimes.Sunrise, resolvedSunTimes.Sunset);
-            await _taskSchedulerManager.ScheduleThemeTasksAsync(resolvedSunTimes.Sunrise, resolvedSunTimes.Sunset, token);
-            var tasksCreated = _taskSchedulerManager.AreThemeTasksCreated();
-            RefreshTaskRuntimeInfo();
-            NotifyIfThemeTasksMissing(tasksCreated);
-            var schedulerStatus = tasksCreated ? "已创建" : $"创建失败：{GetTaskSchedulerErrorText()}";
-            SetState(tasksCreated, resolvedSunTimes.Sunrise, resolvedSunTimes.Sunset, resolvedSunTimes.Sunrise, resolvedSunTimes.Sunset, _correctionStatus, schedulerStatus);
+            await ApplyScheduleAsync(resolvedSunTimes.Sunrise, resolvedSunTimes.Sunset, token);
         }
         catch (OperationCanceledException) when (_cts?.IsCancellationRequested == true)
         {
@@ -159,14 +186,57 @@ public sealed class AutoDayNightService : IDisposable
 
     public Task<(double Latitude, double Longitude)?> ResolveLocationAsync(CancellationToken token)
     {
-        return _solarCalculator.ResolveSystemLocationAsync(token);
+        return ResolveConfiguredLocationAsync(token);
     }
 
-    private async Task CorrectThemeAsync(TimeSpan sunrise, TimeSpan sunset)
+    private async Task<(double Latitude, double Longitude)?> ResolveConfiguredLocationAsync(CancellationToken token)
+    {
+        if (_appSettingsService.AutoDayNightUseCity)
+        {
+            return CityCoordinateCatalog.TryResolve(_appSettingsService.AutoDayNightCity, out var city)
+                ? (city.Latitude, city.Longitude)
+                : null;
+        }
+
+        return _appSettingsService.AutoDayNightUseSystemLocation
+            ? await _solarCalculator.ResolveSystemLocationAsync(token)
+            : null;
+    }
+
+    private bool TryGetCustomSchedule(out TimeSpan lightTime, out TimeSpan darkTime)
+    {
+        lightTime = default;
+        darkTime = default;
+        if (!TimeSpan.TryParse(_appSettingsService.AutoDayNightNightStartTime, out var nightStart) ||
+            !TimeSpan.TryParse(_appSettingsService.AutoDayNightNightEndTime, out var nightEnd) ||
+            nightStart == nightEnd)
+        {
+            return false;
+        }
+
+        darkTime = nightStart;
+        lightTime = nightEnd;
+        return true;
+    }
+
+    private async Task ApplyScheduleAsync(TimeSpan lightTime, TimeSpan darkTime, CancellationToken token)
+    {
+        _calculatedSunrise = lightTime;
+        _calculatedSunset = darkTime;
+        await CorrectThemeAsync(lightTime, darkTime);
+        await _taskSchedulerManager.ScheduleThemeTasksAsync(lightTime, darkTime, token);
+        var tasksCreated = _taskSchedulerManager.AreThemeTasksCreated();
+        RefreshTaskRuntimeInfo();
+        NotifyIfThemeTasksMissing(tasksCreated);
+        var schedulerStatus = tasksCreated ? "已创建" : $"创建失败：{GetTaskSchedulerErrorText()}";
+        SetState(tasksCreated, lightTime, darkTime, lightTime, darkTime, _correctionStatus, schedulerStatus);
+    }
+
+    private async Task CorrectThemeAsync(TimeSpan lightTime, TimeSpan darkTime)
     {
         var now = DateTime.Now.TimeOfDay;
-        var shouldUseLight = now >= sunrise && now < sunset;
-        var targetTheme = shouldUseLight ? ElementTheme.Light : ElementTheme.Dark;
+        var shouldUseDark = IsTimeInRange(now, darkTime, lightTime);
+        var targetTheme = shouldUseDark ? ElementTheme.Dark : ElementTheme.Light;
         var currentTheme = _themeManager.GetCurrentTheme();
 
         if (currentTheme == targetTheme)
@@ -181,6 +251,100 @@ public sealed class AutoDayNightService : IDisposable
         _lastCorrectedAt = DateTimeOffset.Now;
         _correctionStatus = "已修正";
         RaiseStateChanged();
+    }
+
+    private static bool IsTimeInRange(TimeSpan time, TimeSpan start, TimeSpan end)
+    {
+        return start < end
+            ? time >= start && time < end
+            : time >= start || time < end;
+    }
+
+    private async Task ApplyNightLightStateAsync()
+    {
+        if (_observationPaused) return;
+        var isNightLightActive = _nightLightStateService.IsNightLightActive();
+        if (_observationPaused) return;
+        var targetTheme = isNightLightActive ? ElementTheme.Dark : ElementTheme.Light;
+        var previousState = _nightLightActive;
+        _nightLightActive = isNightLightActive;
+
+        if (_themeManager.GetCurrentTheme() != targetTheme)
+        {
+            await _themeSelectorService.SetSystemThemeAsync(targetTheme);
+            _lastCorrectedAt = DateTimeOffset.Now;
+            _correctionStatus = "已修正";
+        }
+        else if (previousState is null || previousState != isNightLightActive)
+        {
+            _correctionStatus = "已同步";
+        }
+    }
+
+    private void StartNightLightPolling()
+    {
+        lock (_pollSync)
+        {
+            if (_observationPaused || !_started) return;
+            _nightLightPollTimer ??= new Timer(
+                _ => _ = RefreshNightLightSafelyAsync(), null,
+                TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        }
+    }
+
+    internal void SetObservationPaused(bool paused)
+    {
+        lock (_pollSync)
+        {
+            if (_observationPaused == paused) return;
+            _observationPaused = paused;
+            if (paused)
+            {
+                _nightLightPollTimer?.Dispose();
+                _nightLightPollTimer = null;
+            }
+        }
+        if (!paused && _started && _appSettingsService.AutoDayNightEnabled && _appSettingsService.AutoDayNightUseNightLight)
+        {
+            StartNightLightPolling();
+            _ = Task.Run(RefreshNightLightSafelyAsync);
+        }
+    }
+
+    private async Task RefreshNightLightSafelyAsync()
+    {
+        if (_observationPaused || !_started) return;
+        try
+        {
+            if (!await _gate.WaitAsync(0, _cts?.Token ?? CancellationToken.None)) return;
+            try
+            {
+                if (_observationPaused || !_started) return;
+                if (!_appSettingsService.AutoDayNightEnabled || !_appSettingsService.AutoDayNightUseNightLight)
+                {
+                    StopNightLightPolling();
+                    return;
+                }
+                // 周期检查只读夜灯，不重复查询/删除系统主题计划任务。
+                var previous = (_nightLightActive, _lastCorrectedAt, _correctionStatus);
+                await ApplyNightLightStateAsync();
+                if (previous != (_nightLightActive, _lastCorrectedAt, _correctionStatus)) RaiseStateChanged();
+            }
+            finally { _gate.Release(); }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+        catch (Exception ex) { _log.Warning(ex, "Night light observation refresh failed"); }
+    }
+
+    private void StopNightLightPolling()
+    {
+        lock (_pollSync)
+        {
+            _nightLightPollTimer?.Dispose();
+            _nightLightPollTimer = null;
+            _nightLightActive = null;
+        }
     }
 
     private void SetState(
@@ -296,9 +460,12 @@ public sealed class AutoDayNightService : IDisposable
 
     public void Dispose()
     {
+        _started = false;
+        _observationPaused = true;
         _triggerBus.TriggerPublished -= OnTriggerPublished;
         _cts?.Cancel();
         _cts?.Dispose();
+        StopNightLightPolling();
         _gate.Dispose();
     }
 }

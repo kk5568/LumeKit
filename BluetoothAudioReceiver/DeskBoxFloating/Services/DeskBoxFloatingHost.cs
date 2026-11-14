@@ -7,18 +7,25 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Serilog;
 using Windows.Foundation;
 
 namespace BluetoothAudioReceiver.DeskBoxFloating.Services;
 
 public sealed class DeskBoxFloatingHost : IDeskBoxFloatingService
 {
+    private static readonly ILogger _log = Log.ForContext("SourceContext", nameof(DeskBoxFloatingHost));
+
+    private const int IslandExpandedWidth = 600;
+    private const int IslandExpandedHeight = 260;
     private const double TrayMenuItemWidth = 176;
     private const double TrayMenuMaxItemWidth = 320;
 
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly DispatcherTimer _menuHideTimer = new();
     private DeskBoxFloatingWindow? _window;
+    private DeskBoxFloatingWindow? _islandWindow;
+    private DeskBoxIslandPrototype? _islandPrototype;
     private MenuFlyout? _previewMenu;
 
     public event EventHandler? Dismissed;
@@ -58,6 +65,169 @@ public sealed class DeskBoxFloatingHost : IDeskBoxFloatingService
         _dispatcherQueue.TryEnqueue(() => ShowDeskBoxFloatingWindow(normalizedRequest, content));
     }
 
+    public void ShowIslandPreview(FrameworkElement content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        bool enqueued = _dispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                _log.Information("Showing island preview.");
+                _islandWindow ??= CreateWindow();
+                _islandWindow.Show(new DeskBoxFloatingRequest
+                {
+                    ProfileId = DeskBoxFloatingProfiles.NotificationDefault.Id,
+                    PlacementOverride = DeskBoxFloatingPlacement.TopCenter,
+                    WidthOverride = AppSettings.Current.IslandWidth,
+                    HeightOverride = AppSettings.Current.IslandHeight,
+                    AutoDismissOverride = false,
+                    ActivateOnShowOverride = false,
+                    MaterialTypeOverride = AppSettings.Current.IslandMaterialType,
+                    IsIslandPreview = true
+                }, content);
+                _log.Information("Island preview shown.");
+            }
+            catch (Exception ex)
+            {
+                _log.Error(ex, "Failed to show island preview.");
+            }
+        });
+
+        if (!enqueued)
+        {
+            _log.Warning("Could not queue island preview because the UI queue is unavailable.");
+        }
+    }
+
+    public void ShowIslandStatus(FrameworkElement content, int durationMilliseconds)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        int duration = Math.Clamp(durationMilliseconds, 500, 10_000);
+        bool enqueued = _dispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                _islandWindow ??= CreateWindow();
+                _islandWindow.Show(new DeskBoxFloatingRequest
+                {
+                    ProfileId = DeskBoxFloatingProfiles.NotificationDefault.Id,
+                    PlacementOverride = DeskBoxFloatingPlacement.TopCenter,
+                    WidthOverride = AppSettings.Current.IslandWidth,
+                    HeightOverride = AppSettings.Current.IslandHeight,
+                    DurationMilliseconds = duration,
+                    AutoDismissOverride = true,
+                    ActivateOnShowOverride = false,
+                    MaterialTypeOverride = AppSettings.Current.IslandMaterialType,
+                    IsIslandPreview = true
+                }, content);
+            }
+            catch (Exception ex)
+            {
+                _log.Error(ex, "Failed to show island status.");
+            }
+        });
+
+        if (!enqueued)
+        {
+            _log.Warning("Could not queue island status because the UI queue is unavailable.");
+        }
+    }
+
+    public void DismissIslandPreview()
+    {
+        _dispatcherQueue.TryEnqueue(() => _islandWindow?.DismissNow());
+    }
+
+    public void RefreshIslandAppearance()
+    {
+        _dispatcherQueue.TryEnqueue(() => _islandWindow?.RefreshIslandAppearance());
+    }
+
+    public void CloseForExit()
+    {
+        _menuHideTimer.Stop();
+        _previewMenu?.Hide();
+        _islandWindow?.Close();
+        _window?.Close();
+        _islandWindow = null;
+        _window = null;
+    }
+
+    public void ToggleIslandPreview(FrameworkElement content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (_islandWindow?.Visible == true)
+            {
+                _islandWindow.DismissNow();
+            }
+            else
+            {
+                ShowIslandPreviewOnUiThread(content);
+            }
+        });
+    }
+
+    public void ToggleIslandPrototype()
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (_islandWindow?.Visible == true)
+            {
+                _islandWindow.DismissNow();
+                _islandPrototype = null;
+                return;
+            }
+
+            _islandPrototype = new DeskBoxIslandPrototype();
+            _islandPrototype.ExpansionRequested += OnIslandPrototypeExpansionRequested;
+            ShowIslandPreviewOnUiThread(_islandPrototype);
+        });
+    }
+
+    private void OnIslandPrototypeExpansionRequested(object? sender, bool expanded)
+    {
+        if (_islandPrototype is null || _islandWindow is null)
+        {
+            return;
+        }
+
+        _islandPrototype.SetExpansionTarget(expanded);
+        int width = expanded ? IslandExpandedWidth : AppSettings.Current.IslandWidth;
+        int height = expanded ? IslandExpandedHeight : AppSettings.Current.IslandHeight;
+        _islandWindow.AnimateIslandSize(
+            width,
+            height,
+            expanded ? 1 : 0,
+            (progress, _) => _islandPrototype?.ApplyExpansionProgress(progress));
+    }
+
+    private void ShowIslandPreviewOnUiThread(FrameworkElement content)
+    {
+        try
+        {
+            _log.Information("Showing island preview.");
+            _islandWindow ??= CreateWindow();
+            _islandWindow.Show(new DeskBoxFloatingRequest
+            {
+                ProfileId = DeskBoxFloatingProfiles.NotificationDefault.Id,
+                PlacementOverride = DeskBoxFloatingPlacement.TopCenter,
+                WidthOverride = AppSettings.Current.IslandWidth,
+                HeightOverride = AppSettings.Current.IslandHeight,
+                AutoDismissOverride = false,
+                ActivateOnShowOverride = false,
+                MaterialTypeOverride = AppSettings.Current.IslandMaterialType,
+                IsIslandPreview = true
+            }, content);
+            _log.Information("Island preview shown.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex, "Failed to show island preview.");
+        }
+    }
+
     private void ShowDeskBoxFloatingWindow(DeskBoxFloatingRequest request, FrameworkElement? content = null)
     {
         _menuHideTimer.Stop();
@@ -78,7 +248,17 @@ public sealed class DeskBoxFloatingHost : IDeskBoxFloatingService
     private DeskBoxFloatingWindow CreateWindow()
     {
         var window = new DeskBoxFloatingWindow();
-        window.Closed += (_, _) => _window = null;
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_islandWindow, window))
+            {
+                _islandWindow = null;
+            }
+            if (ReferenceEquals(_window, window))
+            {
+                _window = null;
+            }
+        };
         window.Dismissed += (_, args) => Dismissed?.Invoke(this, args);
         return window;
     }

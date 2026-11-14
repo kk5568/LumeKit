@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using BluetoothAudioReceiver.Automation.Models;
 using BluetoothAudioReceiver.Contracts.Services;
+using Windows.System.Power;
 
 namespace BluetoothAudioReceiver.Services;
 
@@ -18,6 +20,7 @@ internal sealed class AutomationObservationStateProcessor : IDisposable
     private readonly Func<bool> _isForegroundFullscreen;
     private readonly object _syncRoot = new();
     private readonly object _gpuSyncRoot = new();
+    private readonly SystemPerformanceMetricsReader _systemPerformanceMetricsReader = new();
     private readonly Dictionary<string, DateTimeOffset> _recentProcessStarts = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PerformanceCounter> _gpuCounters = new(StringComparer.OrdinalIgnoreCase);
 
@@ -74,7 +77,28 @@ internal sealed class AutomationObservationStateProcessor : IDisposable
         var processId = _getForegroundProcessId();
         var fullscreen = _isForegroundFullscreen();
         var gpu = processId is int pid ? GetGpuUsagePercent(pid) : null;
-        return new PerformanceSample(processName, processId, fullscreen, gpu, DateTimeOffset.Now);
+        var systemMetrics = _systemPerformanceMetricsReader.Capture();
+        return new PerformanceSample(
+            processName,
+            processId,
+            fullscreen,
+            gpu,
+            DateTimeOffset.Now,
+            systemMetrics.CpuUsagePercent,
+            systemMetrics.GpuUsagePercent,
+            IsOnBattery());
+    }
+
+    private static bool? IsOnBattery()
+    {
+        try
+        {
+            return PowerManager.PowerSupplyStatus == PowerSupplyStatus.NotPresent;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static string? NormalizeProcessName(string? value)
@@ -131,7 +155,119 @@ internal sealed class AutomationObservationStateProcessor : IDisposable
 
     public void Dispose()
     {
+        _systemPerformanceMetricsReader.Dispose();
         lock (_gpuSyncRoot)
+        {
+            foreach (var counter in _gpuCounters.Values)
+            {
+                counter.Dispose();
+            }
+
+            _gpuCounters.Clear();
+        }
+    }
+}
+
+internal readonly record struct SystemPerformanceMetrics(float? CpuUsagePercent, float? GpuUsagePercent);
+
+internal sealed class SystemPerformanceMetricsReader : IDisposable
+{
+    private static readonly Regex ThreeDimensionalEnginePattern = new(
+        @"_luid_(?<luid>.+?)_phys_(?<physical>\d+)_eng_(?<engine>\d+)_engtype_3D$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private readonly object _syncRoot = new();
+    private readonly Dictionary<string, PerformanceCounter> _gpuCounters = new(StringComparer.OrdinalIgnoreCase);
+    private PerformanceCounter? _cpuCounter;
+    private bool _cpuPrimed;
+
+    public SystemPerformanceMetrics Capture()
+        => new(CaptureCpuUsagePercent(), CaptureGpuUsagePercent());
+
+    private float? CaptureCpuUsagePercent()
+    {
+        try
+        {
+            if (_cpuCounter is null)
+            {
+                _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total", readOnly: true);
+                _cpuCounter.NextValue();
+                _cpuPrimed = true;
+                return null;
+            }
+
+            if (!_cpuPrimed)
+            {
+                _cpuCounter.NextValue();
+                _cpuPrimed = true;
+                return null;
+            }
+
+            return Math.Clamp(_cpuCounter.NextValue(), 0f, 100f);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private float? CaptureGpuUsagePercent()
+    {
+        lock (_syncRoot)
+        {
+            try
+            {
+                var instances = new PerformanceCounterCategory("GPU Engine")
+                    .GetInstanceNames()
+                    .Where(name => name.Contains("_engtype_3D", StringComparison.OrdinalIgnoreCase))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var stale in _gpuCounters.Keys.Except(instances, StringComparer.OrdinalIgnoreCase).ToArray())
+                {
+                    _gpuCounters[stale].Dispose();
+                    _gpuCounters.Remove(stale);
+                }
+
+                var addedCounter = false;
+                var engineTotals = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+                foreach (var instance in instances)
+                {
+                    if (!_gpuCounters.TryGetValue(instance, out var counter))
+                    {
+                        counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instance, readOnly: true);
+                        counter.NextValue();
+                        _gpuCounters[instance] = counter;
+                        addedCounter = true;
+                        continue;
+                    }
+
+                    var match = ThreeDimensionalEnginePattern.Match(instance);
+                    var engineKey = match.Success
+                        ? $"{match.Groups["luid"].Value}:{match.Groups["physical"].Value}:{match.Groups["engine"].Value}"
+                        : "3d-engine";
+                    engineTotals[engineKey] = engineTotals.GetValueOrDefault(engineKey) + counter.NextValue();
+                }
+
+                if (addedCounter || engineTotals.Count == 0)
+                {
+                    return null;
+                }
+
+                return Math.Clamp(engineTotals.Values.Max(), 0f, 100f);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _cpuCounter?.Dispose();
+        _cpuCounter = null;
+
+        lock (_syncRoot)
         {
             foreach (var counter in _gpuCounters.Values)
             {

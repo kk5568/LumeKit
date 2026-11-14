@@ -36,6 +36,12 @@ internal sealed class AutomationTriggerRegistry : IAutomationTriggerRegistry
             EmitsDynamicPayload: true,
             LegacyAliases: ["PerformanceModeExited"]),
         new(
+            AutomationTriggerCatalog.DynamicPerformanceChanged,
+            "动态性能",
+            AutomationTriggerProviderKind.Application,
+            SupportsParameters: true,
+            EmitsDynamicPayload: true),
+        new(
             AutomationTriggerCatalog.PowerChanged,
             "电源状态",
             AutomationTriggerProviderKind.System,

@@ -30,6 +30,12 @@ public sealed class AppSettings
 
     /// <summary>窗口材质类型（Mica / MicaAlt / Acrylic / AcrylicBase / Solid），由设置页写入。</summary>
     public string TrayMaterialType { get; set; } = SettingsService.DefaultWidgetMaterialType;
+    public string IslandMaterialType { get; set; } = DeskBoxFloatingMaterialTypes.AcrylicBase;
+    public int IslandWidth { get; set; } = 280;
+    public int IslandHeight { get; set; } = 55;
+    public int IslandTopMargin { get; set; } = 50;
+    public string IslandHorizontalPosition { get; set; } = "Center";
+    public int IslandHorizontalOffset { get; set; }
 
     /// <summary>进场起点：窗口正下方多少 px（DeskBox 的 down 只算到工作区下沿 + 16px，贴底浮窗看不清滑动）。</summary>
     public double? TraySlideOffsetOverrideY => DeskBoxFloatingAnimationTiers.Resolve(TrayAnimationTier).OffsetY;
